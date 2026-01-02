@@ -1,0 +1,12 @@
+type: app
+name: frontend
+
+build:
+  context: ../../remote-team-web
+  dockerfile: Dockerfile
+
+port: 3000
+
+env:
+  NEXT_PUBLIC_API_URL: http://backend:4000/graphql
+  NEXT_PUBLIC_WS_URL: ws://backend:4000
