@@ -8,5 +8,6 @@ build:
 port: 3000
 
 env:
-  NEXT_PUBLIC_API_URL: http://backend:4000/graphql
-  NEXT_PUBLIC_WS_URL: ws://backend:4000
+  NEXT_PUBLIC_API_URL: https://test-backend.vvowhz.easypanel.host/graphql
+  NEXT_PUBLIC_WS_URL: wss://test-backend.vvowhz.easypanel.host
+
