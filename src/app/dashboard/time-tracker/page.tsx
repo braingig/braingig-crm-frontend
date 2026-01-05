@@ -57,7 +57,7 @@ export default function TimeTrackerPage() {
     const [totalWorkingTime, setTotalWorkingTime] = useState(0);
     const [isPaused, setIsPaused] = useState(false);
     const [cachedActiveEntry, setCachedActiveEntry] = useState<any>(null);
-    
+
     // Persistent cache refs to survive React re-renders
     const persistentCacheRef = useRef<any>(null);
     const cacheInitializedRef = useRef(false);
@@ -125,7 +125,7 @@ export default function TimeTrackerPage() {
         };
     });
     const [lastScreenshotTime, setLastScreenshotTime] = useState<number | null>(null);
-    const [screenshotHistory, setScreenshotHistory] = useState<Array<{timestamp: number; data: string; filename: string}>>(() => {
+    const [screenshotHistory, setScreenshotHistory] = useState<Array<{ timestamp: number; data: string; filename: string }>>(() => {
         if (typeof window !== 'undefined') {
             try {
                 const stored = localStorage.getItem('screenshotHistory');
@@ -227,7 +227,7 @@ export default function TimeTrackerPage() {
             } catch (error) {
                 // Ignore errors
             }
-            
+
             // Try to restore from localStorage (more persistent than sessionStorage)
             try {
                 const storedCache = localStorage.getItem('cachedActiveEntry');
@@ -249,7 +249,7 @@ export default function TimeTrackerPage() {
     useEffect(() => {
         // Skip initial mount sync
         if (!cacheInitializedRef.current) return;
-        
+
         // Update localStorage when cache changes
         try {
             if (cachedActiveEntry) {
@@ -262,11 +262,11 @@ export default function TimeTrackerPage() {
         } catch (error) {
             console.error('❌ Error saving cache:', error);
         }
-        
+
         // Keep ref in sync
         persistentCacheRef.current = cachedActiveEntry;
     }, [cachedActiveEntry]);
-    
+
     const tasks = tasksData?.tasks || [];
 
     // Filter projects to only show those that have tasks assigned to current user
@@ -387,7 +387,7 @@ export default function TimeTrackerPage() {
     const [startTimer] = useMutation(START_TIME_ENTRY, {
         onCompleted: async () => {
             console.log('✅ Timer started successfully!');
-            
+
             // Show system notification for timer start
             try {
                 await browserElectronService.showNotification(
@@ -397,20 +397,20 @@ export default function TimeTrackerPage() {
             } catch (error) {
                 console.error('Failed to show start notification:', error);
             }
-            
+
             // Set initial screenshot time when timer starts (to prevent immediate capture)
             if (screenshotSettings.enabled && screenshotConsent) {
                 const initialTime = Date.now();
                 setLastScreenshotTime(initialTime);
                 lastScreenshotTimeRef.current = initialTime;
             }
-            
+
             // Add delay before refetch to let backend process
             setTimeout(async () => {
                 console.log('🔄 Refetching immediately after timer start...');
                 const result = await refetchActiveEntry();
                 console.log('📊 Post-start refetch data:', JSON.stringify(result.data, null, 2));
-                
+
                 // Cache the active entry for pause/resume logic
                 if (result.data?.activeTimeEntry) {
                     console.log('💾 Caching active entry:', result.data.activeTimeEntry);
@@ -439,7 +439,7 @@ export default function TimeTrackerPage() {
             console.log('✅ TIMER STOP SUCCESS - Response data:', data);
             console.log('⛔ Timer stopped automatically! (This should only appear when user manually stops timer)');
             console.log('🗑️ Clearing cached entry due to manual timer stop');
-            
+
             // Show system notification for timer stop
             try {
                 browserElectronService.showNotification(
@@ -451,7 +451,7 @@ export default function TimeTrackerPage() {
             } catch (error) {
                 console.error('Failed to show stop notification:', error);
             }
-            
+
             setCachedActiveEntry(null); // Clear cached entry
             refetchActiveEntry();
             refetchTimeEntries();
@@ -474,11 +474,11 @@ export default function TimeTrackerPage() {
             console.error('❌ ERROR GRAPHQL ERRORS:', error.graphQLErrors);
             console.error('❌ ERROR NETWORK ERROR:', error.networkError);
             console.error('❌ ERROR MESSAGE:', error.message);
-            
+
             setIsStopping(false); // Reset stopping flag on error
-            
+
             // Provide more specific error messages
-            if (error.message.includes('No active timer found') || 
+            if (error.message.includes('No active timer found') ||
                 error.graphQLErrors?.some((gqlError: any) => gqlError.message?.includes('No active timer found'))) {
                 console.log('❌ DETECTED "No active timer found" error');
                 // This is not really an error - the timer was already stopped
@@ -538,7 +538,7 @@ export default function TimeTrackerPage() {
             if (isRunningInElectron) {
                 electronService.removeActivityStatusListener();
             }
-            
+
             // Stop browser electron service if it was active
             if (browserElectronService.isServiceAvailable && electronTrackingEnabled) {
                 browserElectronService.stopActivityTracking();
@@ -559,19 +559,19 @@ export default function TimeTrackerPage() {
         // Try browser electron service first (for regular browser usage)
         console.log('🌐 Checking browser electron service availability...');
         console.log('🔍 isServiceAvailable (initial):', browserElectronService.isServiceAvailable);
-        
+
         // Force immediate availability check
         const isAvailable = await browserElectronService.forceCheckAvailability();
         console.log('🔍 isServiceAvailable (after force check):', isAvailable);
-        
+
         console.log('🔍 About to check isAvailable condition:', isAvailable, 'type:', typeof isAvailable);
         if (isAvailable) {
             console.log('✅ Browser electron service available - ENTERING IF BLOCK');
-            
+
             try {
                 const token = localStorage.getItem('accessToken');
                 console.log('🔑 Access token found:', !!token);
-                
+
                 if (!token) {
                     console.error('❌ No access token found');
                     return;
@@ -582,51 +582,76 @@ export default function TimeTrackerPage() {
                 console.log('🔗 Making request to:', `http://localhost:8765/start-tracking`);
                 console.log('📤 Request body:', { userId: currentUserId, token: token ? 'present' : 'missing' });
                 const trackingStarted = await browserElectronService.startActivityTracking(currentUserId, token);
-              console.log('📊 Tracking started result:', trackingStarted);
-              console.log('📊 trackingStarted.success:', trackingStarted?.success);
-              console.log('📊 trackingStarted.tracking:', trackingStarted?.tracking);
-              setElectronTrackingEnabled(trackingStarted.success && trackingStarted.tracking);
-  
-              if (trackingStarted.success && trackingStarted.tracking) {
-                      console.log('✅ Browser electron activity tracking started for user:', currentUserId);
+                useEffect(() => {
+                    if (!activeEntry) return;
+
+                    const unsubscribe = browserElectronService.onActivityStatus((data) => {
+                        console.log('🧠 Electron activity received:', data);
+
+                        // 🔴 PAUSE
+                        if (data.isIdle === true && !isTimerPausedRef.current) {
+                            console.log('⛔ Electron detected IDLE → pausing timer');
+                            handleTimerPause();
+                            return;
+                        }
+
+                        // 🟢 RESUME
+                        if (data.isIdle === false && isTimerPausedRef.current) {
+                            console.log('▶️ Electron detected ACTIVE → resuming timer');
+                            handleTimerResume(data.idleTime);
+                        }
+                    });
+
+                    return () => {
+                        unsubscribe?.();
+                    };
+                }, [activeEntry?.id]);
+
+                console.log('📊 Tracking started result:', trackingStarted);
+                console.log('📊 trackingStarted.success:', trackingStarted?.success);
+                console.log('📊 trackingStarted.tracking:', trackingStarted?.tracking);
+                setElectronTrackingEnabled(trackingStarted.success && trackingStarted.tracking);
+
+                if (trackingStarted.success && trackingStarted.tracking) {
+                    console.log('✅ Browser electron activity tracking started for user:', currentUserId);
 
                     // Listen for activity status updates via SSE
                     const unsubscribe = browserElectronService.onActivityStatus(async (data) => {
                         try {
                             setActivityStatus(data);
 
-                        // Use persistent cache reference to avoid React re-mount issues
-                        // Fallback to GraphQL activeEntry if cache is empty
-                        const currentActiveEntry = persistentCacheRef.current || cachedActiveEntry || activeEntry;
+                            // Use persistent cache reference to avoid React re-mount issues
+                            // Fallback to GraphQL activeEntry if cache is empty
+                            const currentActiveEntry = persistentCacheRef.current || cachedActiveEntry || activeEntry;
 
-                        // Handle activity changes with persistent cached activeEntry
-                        
-                        if (data.type === 'IDLE' && currentActiveEntry) {
-                            // User went idle - pause the timer
-                            
-                            // IMMEDIATELY stop the timer interval to prevent any further counting
-                            if (timerIntervalRef.current) {
-                                clearInterval(timerIntervalRef.current);
-                                timerIntervalRef.current = null;
+                            // Handle activity changes with persistent cached activeEntry
+
+                            if (data.type === 'IDLE' && currentActiveEntry) {
+                                // User went idle - pause the timer
+
+                                // IMMEDIATELY stop the timer interval to prevent any further counting
+                                if (timerIntervalRef.current) {
+                                    clearInterval(timerIntervalRef.current);
+                                    timerIntervalRef.current = null;
+                                }
+
+                                handleTimerPause(); // Call immediately instead of setTimeout
+                            } else if (data.type === 'ACTIVE' && currentActiveEntry && isTimerPausedRef.current) {
+                                // User became active again - resume the timer
+                                console.log('🟢 ACTIVE detected, resuming timer. cachedEntry:', !!currentActiveEntry, 'isTimerPaused:', isTimerPausedRef.current);
+                                console.log('🟢 Electron data:', data);
+                                console.log('🟢 Electron idleTime:', data.idleTime);
+                                console.log('🟢 About to call handleTimerResume()');
+                                handleTimerResume(data.idleTime || 0); // Pass Electron's idle time
+                            } else {
+                                console.log('⚪ Activity event not triggering timer action. type:', data.type, 'cachedEntry:', !!currentActiveEntry, 'isTimerPaused:', isTimerPausedRef.current);
+                                if (data.type === 'IDLE' && !currentActiveEntry) {
+                                    console.log('❌ IDLE detected but NO currentActiveEntry - timer not started?');
+                                }
+                                if (data.type === 'ACTIVE' && currentActiveEntry && !isTimerPausedRef.current) {
+                                    console.log('ℹ️ ACTIVE detected but timer not paused - already running');
+                                }
                             }
-                            
-                            handleTimerPause(); // Call immediately instead of setTimeout
-                        } else if (data.type === 'ACTIVE' && currentActiveEntry && isTimerPausedRef.current) {
-                            // User became active again - resume the timer
-                            console.log('🟢 ACTIVE detected, resuming timer. cachedEntry:', !!currentActiveEntry, 'isTimerPaused:', isTimerPausedRef.current);
-                            console.log('🟢 Electron data:', data);
-                            console.log('🟢 Electron idleTime:', data.idleTime);
-                            console.log('🟢 About to call handleTimerResume()');
-                            handleTimerResume(data.idleTime || 0); // Pass Electron's idle time
-                        } else {
-                            console.log('⚪ Activity event not triggering timer action. type:', data.type, 'cachedEntry:', !!currentActiveEntry, 'isTimerPaused:', isTimerPausedRef.current);
-                            if (data.type === 'IDLE' && !currentActiveEntry) {
-                                console.log('❌ IDLE detected but NO currentActiveEntry - timer not started?');
-                            }
-                            if (data.type === 'ACTIVE' && currentActiveEntry && !isTimerPausedRef.current) {
-                                console.log('ℹ️ ACTIVE detected but timer not paused - already running');
-                            }
-                        }
 
                             // Report activity to backend
                             reportActivity({
@@ -653,7 +678,7 @@ export default function TimeTrackerPage() {
         } else {
             console.log('⚠️ Browser electron service not available, falling back to IPC service...');
             console.log('⚠️ isAvailable value:', isAvailable, 'type:', typeof isAvailable);
-            
+
             // Fallback to original IPC service if running inside Electron
             if (electronService.isRunningInElectron) {
                 console.log('🌐 Is Electron running:', electronService.isRunningInElectron);
@@ -661,7 +686,7 @@ export default function TimeTrackerPage() {
                 try {
                     const token = localStorage.getItem('accessToken');
                     console.log('🔑 Access token found:', !!token);
-                    
+
                     if (token) {
                         await electronService.saveToken(token);
                         console.log('✅ Auth token saved to Electron');
@@ -682,16 +707,16 @@ export default function TimeTrackerPage() {
 
                             // Handle activity changes with persistent cache to ensure consistency
                             const currentActiveEntry = persistentCacheRef.current || cachedActiveEntry || activeEntry;
-                            
+
                             if (data.type === 'IDLE' && currentActiveEntry) {
                                 // User went idle - stop the timer
-                                
+
                                 // IMMEDIATELY stop the timer interval to prevent any further counting
                                 if (timerIntervalRef.current) {
                                     clearInterval(timerIntervalRef.current);
                                     timerIntervalRef.current = null;
                                 }
-                                
+
                                 handleTimerPause();
                             } else if (data.type === 'ACTIVE' && currentActiveEntry && isTimerPaused) {
                                 // User became active again - resume the timer
@@ -816,10 +841,10 @@ export default function TimeTrackerPage() {
             // Check if this is actually a new entry (different from cached)
             const currentCache = persistentCacheRef.current;
             const isNewEntry = !currentCache || currentCache.id !== activeEntry.id;
-            
+
             console.log('🔄 Active entry effect - isNewEntry:', isNewEntry, 'currentIsPaused:', isTimerPaused);
             console.log('🔄 Active entry effect STATE - totalWorkingTime:', totalWorkingTime, 'elapsed:', elapsed);
-            
+
             if (isNewEntry) {
                 // New active entry started, reset working time state only if we don't have existing working time
                 if (totalWorkingTime === 0 && elapsed === 0) {
@@ -1021,9 +1046,9 @@ export default function TimeTrackerPage() {
     useEffect(() => {
         // Use persistent cache reference to avoid React re-mount issues
         const timerEntry = activeEntry || persistentCacheRef.current || cachedActiveEntry;
-        
 
-        
+
+
         // Clear any existing interval first
         if (timerIntervalRef.current) {
 
@@ -1035,101 +1060,101 @@ export default function TimeTrackerPage() {
             // Timer is running - update every second
 
             console.log('⏱️ Timer conditions met - timerEntry:', !!timerEntry, 'isTimerPausedRef:', isTimerPausedRef.current, 'timerStatus:', timerStatus, 'isPausedRef:', isPausedRef.current);
-        console.log('⏱️ State vs Ref - isTimerPaused(state):', isTimerPaused, 'isPaused(state):', isPaused);
-        console.log('⏱️ Current totalWorkingTime:', totalWorkingTime, 'actualElapsedRef.current:', actualElapsedRef.current);
-        
-        const intervalId = Date.now();
-        console.log('⏱️ Creating new timer interval:', intervalId);
-        
-        // CRITICAL: Clear any existing timer interval before creating a new one
-        if (timerIntervalRef.current) {
-            console.log('🛑 CLEANUP: Found existing timer interval, clearing it first');
-            clearInterval(timerIntervalRef.current);
-            timerIntervalRef.current = null;
-        }
-        
-        // CRITICAL: Use the ref value instead of state to get the most up-to-date working time
-        // This prevents the timer from using stale state after resume corrections
-        const currentWorkingTime = actualElapsedRef.current;
-        const startTime = Date.now() - (currentWorkingTime * 1000);
-        console.log('⏱️ Timer starting/resuming - baseWorkingTime (from ref):', currentWorkingTime, 'seconds, calculated startTime:', startTime, 'currentTime:', Date.now());
-        console.log('⏱️ State vs Ref - totalWorkingTime(state):', totalWorkingTime, 'actualElapsedRef:', actualElapsedRef.current);
-        console.log('🔍 TIMER START DEBUG - If user worked 44s, baseWorkingTime should be 44, not 104. Checking...');
-        
-        timerIntervalRef.current = setInterval(() => {
-            // CRITICAL: Check both refs to ensure timer stops immediately when user becomes inactive
-            if (isPausedRef.current || isTimerPausedRef.current) {
-                console.log('🛑 Timer interval detected pause - stopping immediately');
-                if (timerIntervalRef.current) {
-                    clearInterval(timerIntervalRef.current);
-                    timerIntervalRef.current = null;
-                }
-                return;
-            }
-            
-            // Calculate elapsed time based on start time (more reliable than incremental updates)
-            const currentElapsed = Math.floor((Date.now() - startTime) / 1000);
-            actualElapsedRef.current = currentElapsed; // Update ref immediately
-            
-            setTotalWorkingTime(currentElapsed);
-            setElapsed(currentElapsed);
-            
-            // Debug logging to verify correct calculation
-            if (currentElapsed % 5 === 0) {
-                const debugIdleTime = pauseStartTimeRef.current ? Math.floor((Date.now() - pauseStartTimeRef.current) / 1000) : 0;
-                console.log('🔍 TIMER DEBUG - currentElapsed:', currentElapsed, 'startTime:', startTime, 'idleTime:', debugIdleTime, 'isTimerPausedRef:', isTimerPausedRef.current);
-            }
-            
-            // Log every 5 seconds to reduce spam
-            if (currentElapsed % 5 === 0) {
-                console.log('⏱️ Timer working (ref-based):', currentElapsed, 'seconds elapsed (ref:', actualElapsedRef.current, ')');
-            }
-            
+            console.log('⏱️ State vs Ref - isTimerPaused(state):', isTimerPaused, 'isPaused(state):', isPaused);
+            console.log('⏱️ Current totalWorkingTime:', totalWorkingTime, 'actualElapsedRef.current:', actualElapsedRef.current);
 
-            
-            if (screenshotSettings.enabled && screenshotConsent) {
-                const now = Date.now();
-                const intervalMs = screenshotSettings.intervalMinutes * 60 * 1000;
-                const offsetMs = (Math.random() * 2 - 1) * screenshotSettings.randomOffsetMinutes * 60 * 1000;
-                const effectiveInterval = intervalMs + offsetMs;
-                // Use ref for immediate timestamp checking to avoid race conditions
-                const lastScreenshotTimeImmediate = lastScreenshotTimeRef.current || lastScreenshotTime;
-                const timeSinceLast = lastScreenshotTimeImmediate ? now - lastScreenshotTimeImmediate : 0;
-                
+            const intervalId = Date.now();
+            console.log('⏱️ Creating new timer interval:', intervalId);
 
-                
-                // Only trigger if enough time has passed since last screenshot and we're not already capturing
-                // For first time (no previous screenshot), trigger after 10 minutes from timer start
-                const shouldTrigger = lastScreenshotTimeImmediate 
-                    ? timeSinceLast >= effectiveInterval 
-                    : currentElapsed >= effectiveInterval / 1000; // Convert to seconds for comparison
-                    
-                // Debug logging every 30 seconds to track screenshot timing
-                if (currentElapsed % 30 === 0) {
-                    const minutesElapsed = (currentElapsed / 60).toFixed(1);
-                    const intervalMinutes = (effectiveInterval / 1000 / 60).toFixed(1);
-                    const timeSinceLastMinutes = lastScreenshotTimeImmediate ? (timeSinceLast / 1000 / 60).toFixed(1) : 'N/A';
-                    console.log(`📸 Screenshot Check - Elapsed: ${minutesElapsed}min, Interval: ${intervalMinutes}min, Since last: ${timeSinceLastMinutes}min, Should trigger: ${shouldTrigger}`);
+            // CRITICAL: Clear any existing timer interval before creating a new one
+            if (timerIntervalRef.current) {
+                console.log('🛑 CLEANUP: Found existing timer interval, clearing it first');
+                clearInterval(timerIntervalRef.current);
+                timerIntervalRef.current = null;
+            }
+
+            // CRITICAL: Use the ref value instead of state to get the most up-to-date working time
+            // This prevents the timer from using stale state after resume corrections
+            const currentWorkingTime = actualElapsedRef.current;
+            const startTime = Date.now() - (currentWorkingTime * 1000);
+            console.log('⏱️ Timer starting/resuming - baseWorkingTime (from ref):', currentWorkingTime, 'seconds, calculated startTime:', startTime, 'currentTime:', Date.now());
+            console.log('⏱️ State vs Ref - totalWorkingTime(state):', totalWorkingTime, 'actualElapsedRef:', actualElapsedRef.current);
+            console.log('🔍 TIMER START DEBUG - If user worked 44s, baseWorkingTime should be 44, not 104. Checking...');
+
+            timerIntervalRef.current = setInterval(() => {
+                // CRITICAL: Check both refs to ensure timer stops immediately when user becomes inactive
+                if (isPausedRef.current || isTimerPausedRef.current) {
+                    console.log('🛑 Timer interval detected pause - stopping immediately');
+                    if (timerIntervalRef.current) {
+                        clearInterval(timerIntervalRef.current);
+                        timerIntervalRef.current = null;
+                    }
+                    return;
                 }
-                    
-                if (shouldTrigger && !isCapturingScreenshot) {
-                    console.log('📸 Screenshot captured (10 min interval)');
-                    
-                    // Update lastScreenshotTime immediately to prevent multiple triggers
-                    const triggerTime = Date.now();
-                    setLastScreenshotTime(triggerTime);
-                    lastScreenshotTimeRef.current = triggerTime; // Immediate ref update
-                    
-                    captureScreenForTracking();
-                } else if (isCapturingScreenshot) {
-                    // Keep this warning as it's useful for debugging
-                    if (currentElapsed % 60 === 0) { // Log every minute only
-                        console.log('⏸️ Screenshot capture in progress - skipping');
+
+                // Calculate elapsed time based on start time (more reliable than incremental updates)
+                const currentElapsed = Math.floor((Date.now() - startTime) / 1000);
+                actualElapsedRef.current = currentElapsed; // Update ref immediately
+
+                setTotalWorkingTime(currentElapsed);
+                setElapsed(currentElapsed);
+
+                // Debug logging to verify correct calculation
+                if (currentElapsed % 5 === 0) {
+                    const debugIdleTime = pauseStartTimeRef.current ? Math.floor((Date.now() - pauseStartTimeRef.current) / 1000) : 0;
+                    console.log('🔍 TIMER DEBUG - currentElapsed:', currentElapsed, 'startTime:', startTime, 'idleTime:', debugIdleTime, 'isTimerPausedRef:', isTimerPausedRef.current);
+                }
+
+                // Log every 5 seconds to reduce spam
+                if (currentElapsed % 5 === 0) {
+                    console.log('⏱️ Timer working (ref-based):', currentElapsed, 'seconds elapsed (ref:', actualElapsedRef.current, ')');
+                }
+
+
+
+                if (screenshotSettings.enabled && screenshotConsent) {
+                    const now = Date.now();
+                    const intervalMs = screenshotSettings.intervalMinutes * 60 * 1000;
+                    const offsetMs = (Math.random() * 2 - 1) * screenshotSettings.randomOffsetMinutes * 60 * 1000;
+                    const effectiveInterval = intervalMs + offsetMs;
+                    // Use ref for immediate timestamp checking to avoid race conditions
+                    const lastScreenshotTimeImmediate = lastScreenshotTimeRef.current || lastScreenshotTime;
+                    const timeSinceLast = lastScreenshotTimeImmediate ? now - lastScreenshotTimeImmediate : 0;
+
+
+
+                    // Only trigger if enough time has passed since last screenshot and we're not already capturing
+                    // For first time (no previous screenshot), trigger after 10 minutes from timer start
+                    const shouldTrigger = lastScreenshotTimeImmediate
+                        ? timeSinceLast >= effectiveInterval
+                        : currentElapsed >= effectiveInterval / 1000; // Convert to seconds for comparison
+
+                    // Debug logging every 30 seconds to track screenshot timing
+                    if (currentElapsed % 30 === 0) {
+                        const minutesElapsed = (currentElapsed / 60).toFixed(1);
+                        const intervalMinutes = (effectiveInterval / 1000 / 60).toFixed(1);
+                        const timeSinceLastMinutes = lastScreenshotTimeImmediate ? (timeSinceLast / 1000 / 60).toFixed(1) : 'N/A';
+                        console.log(`📸 Screenshot Check - Elapsed: ${minutesElapsed}min, Interval: ${intervalMinutes}min, Since last: ${timeSinceLastMinutes}min, Should trigger: ${shouldTrigger}`);
+                    }
+
+                    if (shouldTrigger && !isCapturingScreenshot) {
+                        console.log('📸 Screenshot captured (10 min interval)');
+
+                        // Update lastScreenshotTime immediately to prevent multiple triggers
+                        const triggerTime = Date.now();
+                        setLastScreenshotTime(triggerTime);
+                        lastScreenshotTimeRef.current = triggerTime; // Immediate ref update
+
+                        captureScreenForTracking();
+                    } else if (isCapturingScreenshot) {
+                        // Keep this warning as it's useful for debugging
+                        if (currentElapsed % 60 === 0) { // Log every minute only
+                            console.log('⏸️ Screenshot capture in progress - skipping');
+                        }
                     }
                 }
-            }
-        }, 1000); // Update every second for consistency and performance
-            
+            }, 1000); // Update every second for consistency and performance
+
             return () => {
                 if (timerIntervalRef.current) {
                     clearInterval(timerIntervalRef.current);
@@ -1265,7 +1290,7 @@ export default function TimeTrackerPage() {
     // Screenshot capture function with consent management
     const captureScreenForTracking = async () => {
         console.log('📸 captureScreenForTracking called - consent:', screenshotConsent, 'enabled:', screenshotSettings.enabled);
-        
+
         if (!screenshotConsent) {
             console.warn('Screenshot capture requires consent');
             return false;
@@ -1295,7 +1320,7 @@ export default function TimeTrackerPage() {
                 data?: string | undefined;
                 error?: string | undefined;
             } | null = null;
-            
+
             // Use direct IPC if running in Electron, otherwise use HTTP service
             if (electronService.isRunningInElectron) {
                 console.log('🖥️ Using Electron IPC for screenshot capture');
@@ -1309,13 +1334,13 @@ export default function TimeTrackerPage() {
                 }
                 result = await browserElectronService.captureScreenshot(true);
             }
-            
+
             console.log('🔍 captureScreenshot result:', result);
-            
+
             if (result && result.success && result.filename) {
                 const timestamp = Date.now();
                 // Note: lastScreenshotTime is already set when trigger was called
-                
+
                 // Add to screenshot history with base64 data
                 if (result.data && result.filename) {
                     setScreenshotHistory(prev => [
@@ -1327,18 +1352,18 @@ export default function TimeTrackerPage() {
                         ...prev.slice(0, 11) // Keep only last 12 screenshots
                     ]);
                 }
-                
+
                 console.log('✅ Screenshot captured for time tracking:', result.filename);
                 showNotification('📸 Screenshot captured successfully', 'success');
                 setIsCapturingScreenshot(false);
                 return true;
             } else {
                 console.error('Screenshot capture failed:', result?.error || 'Unknown error');
-                
+
                 // Show user-friendly error for Electron connection issues
                 if (result?.error?.includes('Electron desktop app is not running')) {
                     showNotification(
-                        '⚠️ Electron desktop app is not running. Please start the app to enable screenshots.', 
+                        '⚠️ Electron desktop app is not running. Please start the app to enable screenshots.',
                         'warning'
                     );
                 } else {
@@ -1539,7 +1564,7 @@ export default function TimeTrackerPage() {
 
     const handleStartTimer = () => {
         console.log('🚀 handleStartTimer called!');
-        
+
         // Check if mutation is available
         if (!startTimer) {
             console.error('❌ startTimer mutation not available');
@@ -1561,7 +1586,7 @@ export default function TimeTrackerPage() {
 
         // Set timer status to running when starting
         setTimerStatus('running');
-        
+
         startTimer({
             variables: {
                 input: {
@@ -1576,34 +1601,34 @@ export default function TimeTrackerPage() {
         // Use persistent cache reference to avoid React re-mount issues
         const currentEntry = persistentCacheRef.current || cachedActiveEntry;
         console.log('🔴 handleTimerPause called - currentEntry:', !!currentEntry, 'cachedActiveEntry:', !!cachedActiveEntry, 'persistentCacheRef:', !!persistentCacheRef.current);
-        
+
         if (!currentEntry) {
             console.log('🔴 Cannot pause - no cached active entry');
             return;
         }
-        
+
         // Prevent rapid state updates
         if (isUpdatingStateRef.current || isTimerPausedRef.current) {
             console.log('🔴 Ignoring pause - already updating or already paused');
             return;
         }
-        
+
         console.log('🔴 Electron idle detection - proceeding with pause');
-        
+
         isUpdatingStateRef.current = true;
-        
+
         // Show system notification for timer pause
-          try {
-                browserElectronService.showNotification(
-                    'Timer Paused',
-                    `Your timer has been paused at ${formatTime(totalWorkingTime)}`
-                ).catch(error => {
-                    console.error('Failed to show pause notification:', error);
-                });
-            } catch (error) {
+        try {
+            browserElectronService.showNotification(
+                'Timer Paused',
+                `Your timer has been paused at ${formatTime(totalWorkingTime)}`
+            ).catch(error => {
                 console.error('Failed to show pause notification:', error);
-            }
-        
+            });
+        } catch (error) {
+            console.error('Failed to show pause notification:', error);
+        }
+
         console.log('🔴 Pausing timer due to inactivity. cachedEntry:', currentEntry);
         console.log('🔴 Timer entry details:', {
             id: currentEntry.id,
@@ -1614,7 +1639,7 @@ export default function TimeTrackerPage() {
         console.log('🔴 About to set isTimerPaused to true (current value: false )');
         console.log('🔴 STATE BEFORE PAUSE - elapsed:', elapsed, 'totalWorkingTime:', totalWorkingTime, 'isPaused:', isPaused, 'actualElapsedRef:', actualElapsedRef.current);
         console.log('🔴 EXPECTED: Timer should show 00:44 but user reports it shows 1:44 - investigating time calculation');
-        
+
         // Force clear any running timer interval immediately
         if (timerIntervalRef.current) {
             console.log('🔴 Force clearing timer interval during pause - was interval running?');
@@ -1623,15 +1648,15 @@ export default function TimeTrackerPage() {
         } else {
             console.log('🔴 No timer interval to clear during pause');
         }
-        
+
         // Update refs immediately for consistency
         isTimerPausedRef.current = true;
         isPausedRef.current = true;
-        
+
         // Store the current elapsed time at pause moment and SYNC state with ref
         const currentRefTime = actualElapsedRef.current;
         console.log('🔴 Freezing elapsed time at:', elapsed, 'totalWorkingTime:', totalWorkingTime, 'syncing from ref:', currentRefTime);
-        
+
         // Use unstable_batchedUpdates to ensure all state changes happen together
         unstable_batchedUpdates(() => {
             // IMPORTANT: Sync state with ref to preserve the actual working time at pause moment
@@ -1646,9 +1671,9 @@ export default function TimeTrackerPage() {
             setShowIdleNotification(true);
             console.log('🔴 PAUSE START TIME SET:', now, '- BATCHED STATE UPDATE COMPLETED - timer paused at synced time:', currentRefTime, '(was state: elapsed:', elapsed, 'totalWorkingTime:', totalWorkingTime, ')');
         });
-        
+
         console.log('🔴 PAUSE STATE SET - isTimerPaused should now be true');
-        
+
         // Reset the updating flag immediately
         isUpdatingStateRef.current = false;
     };
@@ -1660,72 +1685,72 @@ export default function TimeTrackerPage() {
             console.log('🟢 Cannot resume - no cached active entry');
             return;
         }
-        
+
         // Prevent rapid state updates
         if (isUpdatingStateRef.current || !isTimerPausedRef.current) {
             console.log('🟢 Ignoring resume - already updating or not paused');
             return;
         }
-        
+
         // Always subtract exactly 60 seconds when user was inactive (1 minute)
         // This is the core requirement: if user inactive for 1 minute, subtract that time
         let idleDuration = 60; // Always 60 seconds for 1 minute of inactivity
-        
+
         console.log('🔍 DEBUG - pauseStartTimeRef:', pauseStartTimeRef.current, 'electronIdleTime:', electronIdleTime);
         console.log('🟢 FIXED IDLE DURATION: Always subtracting', idleDuration, 'seconds (1 minute of inactivity)');
-        
+
         // Validate that we actually had an inactivity period (should have pauseStartTime or electronIdleTime)
         if (!pauseStartTimeRef.current && electronIdleTime === 0) {
             console.log('🔴 WARNING: No inactivity detected - this might be a manual resume');
             idleDuration = 0; // Don't subtract time if no inactivity was detected
         }
         console.log('🟢 Proceeding with resume - idleDuration:', idleDuration, 'seconds');
-        
+
         isUpdatingStateRef.current = true;
-        
+
         console.log('🟢 Resuming timer after activity');
-        
+
         // Force clear any existing timer intervals before creating new ones
         if (timerIntervalRef.current) {
             console.log('🟢 Clearing existing timer interval during resume');
             clearInterval(timerIntervalRef.current);
             timerIntervalRef.current = null;
         }
-        
+
         // idleDuration is now fixed to 60 seconds for inactivity periods
         console.log('🟢 FIXED: User was inactive - subtracting exactly', idleDuration, 'seconds from working time (1 minute of inactivity)');
-        
+
         // Update refs immediately for consistency
         isTimerPausedRef.current = false;
         isPausedRef.current = false;
-        
+
         // Use unstable_batchedUpdates to ensure all state changes happen together
         unstable_batchedUpdates(() => {
             // Get the actual working time when paused (includes idle time that needs to be subtracted)
             const pausedWorkingTime = actualElapsedRef.current;
-            
+
             // CRITICAL: Subtract the idle time from the working time since user was inactive
             // Example: Timer shows 5:25 when paused, user was idle for 1 minute = actual work time is 4:25
             const actualWorkTime = Math.max(0, pausedWorkingTime - idleDuration);
             const newTotalWorkingTime = actualWorkTime;
             const newElapsed = actualWorkTime;
-            
+
             console.log('🟢 Resume with idle time subtraction - pausedWorkingTime:', pausedWorkingTime, 'idleDuration:', idleDuration, 'actualWorkTime:', actualWorkTime, 'state totalWorkingTime:', totalWorkingTime);
-            
+
             // Update both state and ref to keep them in sync with the corrected working time
             setTotalWorkingTime(newTotalWorkingTime);
             setElapsed(newElapsed);
             actualElapsedRef.current = newTotalWorkingTime; // Update ref to match corrected time
-            
+
             setIsPaused(false);
             setIsTimerPaused(false);
             setTimerStatus('running'); // Reset timer status to running
             setShowIdleNotification(false);
             pauseStartTimeRef.current = null;
             setIdleStartTime(null); // Also clear idle start time
-            
+
             // Show system notification for timer resume
-              try {
+            try {
                 browserElectronService.showNotification(
                     'Timer Resumed',
                     `Your timer has been resumed at ${formatTime(actualWorkTime)}`
@@ -1735,16 +1760,16 @@ export default function TimeTrackerPage() {
             } catch (error) {
                 console.error('Failed to show resume notification:', error);
             }
-            
+
             // Force timer to restart with corrected base time (excluding idle time)
             // Add small delay to ensure state updates complete before timer restart
             setTimeout(() => {
                 setTimerRestartKey((prev: number) => prev + 1);
             }, 10);
-            
+
             console.log('🟢 BATCHED RESUME UPDATE COMPLETED - timer corrected to:', actualWorkTime, 'seconds (subtracted', idleDuration, 'idle seconds from', pausedWorkingTime, ')');
         });
-        
+
         // Small delay to ensure all state updates are processed before timer restarts
         setTimeout(() => {
             isUpdatingStateRef.current = false;
@@ -1777,7 +1802,7 @@ export default function TimeTrackerPage() {
         checkIn();
     };
 
-    
+
 
 
     return (
@@ -1978,7 +2003,7 @@ export default function TimeTrackerPage() {
                             </button>
                         </div>
                         <p className="mt-2 text-sm text-blue-700 dark:text-blue-300">
-                            Screenshots are captured periodically for activity monitoring and stored securely. 
+                            Screenshots are captured periodically for activity monitoring and stored securely.
                             You will be notified when screenshots are taken. This feature requires your explicit consent.
                         </p>
                         {lastScreenshotTime && (
@@ -2010,8 +2035,8 @@ export default function TimeTrackerPage() {
                             {screenshotHistory.map((screenshot, index) => (
                                 <div key={screenshot.timestamp} className="relative group">
                                     <div className="aspect-video bg-gray-100 dark:bg-gray-700 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow cursor-pointer">
-                                        <img 
-                                            src={screenshot.data} 
+                                        <img
+                                            src={screenshot.data}
                                             alt={`Screenshot ${index + 1}`}
                                             className="w-full h-full object-cover"
                                             onClick={() => {
@@ -2148,10 +2173,10 @@ export default function TimeTrackerPage() {
                                         <div className="text-center">
                                             {/* Timer status indicator with dynamic colors */}
                                             <div className={`inline-flex items-center justify-center w-32 h-32 rounded-full mb-6 transition-all duration-300 ${timerStatus === 'running'
-                                                    ? 'bg-gradient-to-r from-green-400 to-green-600 animate-pulse'
-                                                    : timerStatus === 'idle'
-                                                        ? 'bg-gradient-to-r from-orange-400 to-orange-600'
-                                                        : 'bg-gradient-to-r from-gray-400 to-gray-600'
+                                                ? 'bg-gradient-to-r from-green-400 to-green-600 animate-pulse'
+                                                : timerStatus === 'idle'
+                                                    ? 'bg-gradient-to-r from-orange-400 to-orange-600'
+                                                    : 'bg-gradient-to-r from-gray-400 to-gray-600'
                                                 }`}>
                                                 {timerStatus === 'running' ? (
                                                     <ClockIcon className="h-16 w-16 text-white" />
@@ -2164,20 +2189,20 @@ export default function TimeTrackerPage() {
 
                                             {/* Timer display with status-based styling */}
                                             <div className={`text-6xl font-bold mb-4 font-mono transition-colors duration-300 ${timerStatus === 'running'
-                                                    ? 'text-gray-900 dark:text-white'
-                                                    : timerStatus === 'idle'
-                                                        ? 'text-orange-600 dark:text-orange-400'
-                                                        : 'text-gray-500 dark:text-gray-400'
+                                                ? 'text-gray-900 dark:text-white'
+                                                : timerStatus === 'idle'
+                                                    ? 'text-orange-600 dark:text-orange-400'
+                                                    : 'text-gray-500 dark:text-gray-400'
                                                 }`}>
                                                 {formatTime(displayTime)}
                                             </div>
 
                                             {/* Status indicator */}
                                             <div className={`mb-4 p-3 rounded-lg border transition-all duration-300 ${timerStatus === 'running'
-                                                    ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700'
-                                                    : timerStatus === 'idle'
-                                                        ? 'bg-orange-100 dark:bg-orange-900 border-orange-300 dark:border-orange-700'
-                                                        : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
+                                                ? 'bg-green-100 dark:bg-green-900 border-green-300 dark:border-green-700'
+                                                : timerStatus === 'idle'
+                                                    ? 'bg-orange-100 dark:bg-orange-900 border-orange-300 dark:border-orange-700'
+                                                    : 'bg-gray-100 dark:bg-gray-700 border-gray-300 dark:border-gray-600'
                                                 }`}>
                                                 <div className="flex items-center justify-center space-x-2">
                                                     {timerStatus === 'running' ? (
@@ -2213,14 +2238,13 @@ export default function TimeTrackerPage() {
                                                         Timer is manually paused
                                                     </p>
                                                 )}
-                                                
+
                                                 {/* Electron Activity Tracking Status */}
                                                 {isElectron && (
-                                                    <div className={`mt-2 p-2 rounded text-xs flex items-center justify-center space-x-1 ${
-                                                        electronTrackingEnabled 
-                                                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200' 
+                                                    <div className={`mt-2 p-2 rounded text-xs flex items-center justify-center space-x-1 ${electronTrackingEnabled
+                                                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
                                                             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
-                                                    }`}>
+                                                        }`}>
                                                         {electronTrackingEnabled ? (
                                                             <>
                                                                 <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
@@ -2253,7 +2277,7 @@ export default function TimeTrackerPage() {
                                                         alert('Timer functionality is not available. Please check if the backend is running.');
                                                         return;
                                                     }
-                                                    
+
                                                     // Debug: Log current state
                                                     console.log('🛑 STOP BUTTON CLICKED - Current state:', {
                                                         activeEntry: !!activeEntry,
@@ -2265,7 +2289,7 @@ export default function TimeTrackerPage() {
                                                         isTimerPaused,
                                                         timerStatus
                                                     });
-                                                    
+
                                                     // Check if there's actually an active timer before trying to stop it
                                                     const currentActiveEntry = activeEntry || persistentCacheRef.current || cachedActiveEntry;
                                                     if (!currentActiveEntry) {
@@ -2273,22 +2297,22 @@ export default function TimeTrackerPage() {
                                                         alert('No active timer found to stop.');
                                                         return;
                                                     }
-                                                    
+
                                                     console.log('🛑 PROCEEDING TO STOP TIMER - Entry ID:', currentActiveEntry.id);
-                                                    
+
                                                     // Set stopping flag to prevent duplicate calls
                                                     setIsStopping(true);
-                                                    
+
                                                     try {
                                                         // First, refresh the active entry to make sure we have the latest state
                                                         console.log('🔄 REFRESHING ACTIVE ENTRY BEFORE STOP');
                                                         const result = await refetchActiveEntry();
                                                         console.log('🔄 REFRESH RESULT:', result.data?.activeTimeEntry);
-                                                        
+
                                                         // Check if there's still an active timer after refresh
                                                         if (!result.data?.activeTimeEntry) {
                                                             console.log('🛑 NO ACTIVE TIMER ON BACKEND AFTER REFRESH');
-                                                            
+
                                                             // If we had an active timer in UI, try to stop anyway in case of race condition
                                                             if (currentActiveEntry) {
                                                                 console.log('⚠️ RACE CONDITION DETECTED - UI had timer but backend shows none. Trying to stop anyway...');
@@ -2299,7 +2323,7 @@ export default function TimeTrackerPage() {
                                                                     console.log('⚠️ Stop attempt failed, timer was already stopped');
                                                                 }
                                                             }
-                                                            
+
                                                             // If we reach here, the timer was genuinely already stopped
                                                             console.log('✅ Timer was already stopped, just refreshing UI');
                                                             setCachedActiveEntry(null);
@@ -2310,7 +2334,7 @@ export default function TimeTrackerPage() {
                                                             setIsStopping(false);
                                                             return;
                                                         }
-                                                        
+
                                                         // If there's still an active timer, proceed with stop
                                                         console.log('🛑 STOPPING TIMER - BACKEND CONFIRMS ACTIVE TIMER');
                                                         stopTimer();
@@ -3098,9 +3122,9 @@ export default function TimeTrackerPage() {
                 <div className="fixed bottom-4 right-4 z-50 animate-pulse">
                     <div className={`
                         border-l-4 p-4 rounded-lg shadow-lg max-w-sm
-                        ${notification.type === 'success' ? 'bg-green-50 border-green-400' : 
-                          notification.type === 'error' ? 'bg-red-50 border-red-400' : 
-                          'bg-yellow-50 border-yellow-400'}
+                        ${notification.type === 'success' ? 'bg-green-50 border-green-400' :
+                            notification.type === 'error' ? 'bg-red-50 border-red-400' :
+                                'bg-yellow-50 border-yellow-400'}
                     `}>
                         <div className="flex items-center">
                             <div className="flex-shrink-0">
@@ -3123,9 +3147,9 @@ export default function TimeTrackerPage() {
                             <div className="ml-3">
                                 <p className={`
                                     text-sm font-medium
-                                    ${notification.type === 'success' ? 'text-green-800' : 
-                                      notification.type === 'error' ? 'text-red-800' : 
-                                      'text-yellow-800'}
+                                    ${notification.type === 'success' ? 'text-green-800' :
+                                        notification.type === 'error' ? 'text-red-800' :
+                                            'text-yellow-800'}
                                 `}>
                                     {notification.message}
                                 </p>
@@ -3135,9 +3159,9 @@ export default function TimeTrackerPage() {
                                     onClick={() => setNotification(null)}
                                     className={`
                                         inline-flex focus:outline-none
-                                        ${notification.type === 'success' ? 'text-green-400 hover:text-green-600' : 
-                                          notification.type === 'error' ? 'text-red-400 hover:text-red-600' : 
-                                          'text-yellow-400 hover:text-yellow-600'}
+                                        ${notification.type === 'success' ? 'text-green-400 hover:text-green-600' :
+                                            notification.type === 'error' ? 'text-red-400 hover:text-red-600' :
+                                                'text-yellow-400 hover:text-yellow-600'}
                                     `}
                                 >
                                     <span className="sr-only">Dismiss</span>
