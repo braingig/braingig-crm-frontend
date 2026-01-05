@@ -1141,7 +1141,7 @@ export default function TimeTrackerPage() {
 
             // Do NOT update elapsed time - keep it frozen at the pause moment
         }
-    }, [activeEntry, isPaused, isTimerPaused, timerStatus, timerRestartKey]);
+    }, [activeEntry?.id, timerRestartKey]);
 
     // Stop timer when user closes browser window or navigates away
     // useEffect(() => {
