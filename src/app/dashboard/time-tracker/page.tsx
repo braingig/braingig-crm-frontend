@@ -548,203 +548,56 @@ export default function TimeTrackerPage() {
 
     const initializeElectronTracking = async () => {
         console.log('🔧 Initializing Electron tracking...');
-        console.log('📋 Current User ID:', currentUserId, 'type:', typeof currentUserId);
 
         if (!currentUserId) {
-            console.error('❌ Cannot start Electron tracking: No user ID');
-            console.error('❌ User ID is falsy - returning early');
+            console.error('❌ No user ID — cannot start tracking');
             return;
         }
 
-        // Try browser electron service first (for regular browser usage)
-        console.log('🌐 Checking browser electron service availability...');
-        console.log('🔍 isServiceAvailable (initial):', browserElectronService.isServiceAvailable);
+        if (!(window as any).electron) {
+            console.warn('⚠️ Electron not available in this environment');
+            return;
+        }
 
-        // Force immediate availability check
-        const isAvailable = await browserElectronService.forceCheckAvailability();
-        console.log('🔍 isServiceAvailable (after force check):', isAvailable);
+        try {
+            console.log('🚀 Starting Electron activity tracking');
+            await (window as any).electron.startActivityTracking(currentUserId);
 
-        console.log('🔍 About to check isAvailable condition:', isAvailable, 'type:', typeof isAvailable);
-        if (isAvailable) {
-            console.log('✅ Browser electron service available - ENTERING IF BLOCK');
+            console.log('✅ Electron tracking started');
 
-            try {
-                const token = localStorage.getItem('accessToken');
-                console.log('🔑 Access token found:', !!token);
-
-                if (!token) {
-                    console.error('❌ No access token found');
-                    return;
-                }
-
-                // Start activity tracking via HTTP
-                console.log('🚀 Starting activity tracking for user:', currentUserId);
-                console.log('🔗 Making request to:', `http://localhost:8765/start-tracking`);
-                console.log('📤 Request body:', { userId: currentUserId, token: token ? 'present' : 'missing' });
-                const trackingStarted = await browserElectronService.startActivityTracking(currentUserId, token);
-                useEffect(() => {
-                    if (!activeEntry) return;
-
-                    const unsubscribe = browserElectronService.onActivityStatus((data) => {
-                        console.log('🧠 Electron activity received:', data);
-
-                        // 🔴 PAUSE
-                        if (data.isIdle === true && !isTimerPausedRef.current) {
-                            console.log('⛔ Electron detected IDLE → pausing timer');
-                            handleTimerPause();
-                            return;
-                        }
-
-                        // 🟢 RESUME
-                        if (data.isIdle === false && isTimerPausedRef.current) {
-                            console.log('▶️ Electron detected ACTIVE → resuming timer');
-                            handleTimerResume(data.idleTime);
-                        }
-                    });
-
-                    return () => {
-                        unsubscribe?.();
-                    };
-                }, [activeEntry?.id]);
-
-                console.log('📊 Tracking started result:', trackingStarted);
-                console.log('📊 trackingStarted.success:', trackingStarted?.success);
-                console.log('📊 trackingStarted.tracking:', trackingStarted?.tracking);
-                setElectronTrackingEnabled(trackingStarted.success && trackingStarted.tracking);
-
-                if (trackingStarted.success && trackingStarted.tracking) {
-                    console.log('✅ Browser electron activity tracking started for user:', currentUserId);
-
-                    // Listen for activity status updates via SSE
-                    const unsubscribe = browserElectronService.onActivityStatus(async (data) => {
-                        try {
-                            setActivityStatus(data);
-
-                            // Use persistent cache reference to avoid React re-mount issues
-                            // Fallback to GraphQL activeEntry if cache is empty
-                            const currentActiveEntry = persistentCacheRef.current || cachedActiveEntry || activeEntry;
-
-                            // Handle activity changes with persistent cached activeEntry
-
-                            if (data.type === 'IDLE' && currentActiveEntry) {
-                                // User went idle - pause the timer
-
-                                // IMMEDIATELY stop the timer interval to prevent any further counting
-                                if (timerIntervalRef.current) {
-                                    clearInterval(timerIntervalRef.current);
-                                    timerIntervalRef.current = null;
-                                }
-
-                                handleTimerPause(); // Call immediately instead of setTimeout
-                            } else if (data.type === 'ACTIVE' && currentActiveEntry && isTimerPausedRef.current) {
-                                // User became active again - resume the timer
-                                console.log('🟢 ACTIVE detected, resuming timer. cachedEntry:', !!currentActiveEntry, 'isTimerPaused:', isTimerPausedRef.current);
-                                console.log('🟢 Electron data:', data);
-                                console.log('🟢 Electron idleTime:', data.idleTime);
-                                console.log('🟢 About to call handleTimerResume()');
-                                handleTimerResume(data.idleTime || 0); // Pass Electron's idle time
-                            } else {
-                                console.log('⚪ Activity event not triggering timer action. type:', data.type, 'cachedEntry:', !!currentActiveEntry, 'isTimerPaused:', isTimerPausedRef.current);
-                                if (data.type === 'IDLE' && !currentActiveEntry) {
-                                    console.log('❌ IDLE detected but NO currentActiveEntry - timer not started?');
-                                }
-                                if (data.type === 'ACTIVE' && currentActiveEntry && !isTimerPausedRef.current) {
-                                    console.log('ℹ️ ACTIVE detected but timer not paused - already running');
-                                }
-                            }
-
-                            // Report activity to backend
-                            reportActivity({
-                                variables: {
-                                    type: data.type,
-                                    metadata: {
-                                        idleTime: data.idleTime,
-                                        timestamp: data.timestamp,
-                                        source: 'electron-desktop'
-                                    }
-                                }
-                            });
-                        } catch (error) {
-                            console.error('❌ ERROR in activity callback:', error instanceof Error ? error.message : String(error));
-                            console.error('❌ Error stack:', error instanceof Error ? error.stack : 'No stack available');
-                        }
-                    });
-
-                    return unsubscribe;
-                }
-            } catch (error) {
-                console.error('❌ Failed to start browser electron tracking:', error);
-            }
-        } else {
-            console.log('⚠️ Browser electron service not available, falling back to IPC service...');
-            console.log('⚠️ isAvailable value:', isAvailable, 'type:', typeof isAvailable);
-
-            // Fallback to original IPC service if running inside Electron
-            if (electronService.isRunningInElectron) {
-                console.log('🌐 Is Electron running:', electronService.isRunningInElectron);
-
-                try {
-                    const token = localStorage.getItem('accessToken');
-                    console.log('🔑 Access token found:', !!token);
-
-                    if (token) {
-                        await electronService.saveToken(token);
-                        console.log('✅ Auth token saved to Electron');
-                    }
-
-                    // Start activity tracking in Electron
-                    console.log('🚀 Starting activity tracking for user:', currentUserId);
-                    const trackingStarted = await electronService.startActivityTracking(currentUserId);
-                    console.log('📊 Tracking started result:', trackingStarted);
-                    setElectronTrackingEnabled(trackingStarted);
-
-                    if (trackingStarted) {
-                        console.log('✅ Electron activity tracking started for user:', currentUserId);
-
-                        // Listen for activity status updates from Electron
-                        electronService.onActivityStatus((data) => {
-                            setActivityStatus(data);
-
-                            // Handle activity changes with persistent cache to ensure consistency
-                            const currentActiveEntry = persistentCacheRef.current || cachedActiveEntry || activeEntry;
-
-                            if (data.type === 'IDLE' && currentActiveEntry) {
-                                // User went idle - stop the timer
-
-                                // IMMEDIATELY stop the timer interval to prevent any further counting
-                                if (timerIntervalRef.current) {
-                                    clearInterval(timerIntervalRef.current);
-                                    timerIntervalRef.current = null;
-                                }
-
-                                handleTimerPause();
-                            } else if (data.type === 'ACTIVE' && currentActiveEntry && isTimerPaused) {
-                                // User became active again - resume the timer
-                                console.log('🟢 IPC ACTIVE detected, resuming timer');
-                                handleTimerResume();
-                            }
-
-                            // Report activity to backend
-                            reportActivity({
-                                variables: {
-                                    type: data.type,
-                                    metadata: {
-                                        idleTime: data.idleTime,
-                                        timestamp: data.timestamp,
-                                        source: 'electron-desktop'
-                                    }
-                                }
-                            });
-                        });
-                    }
-                } catch (error) {
-                    console.error('❌ Failed to start IPC electron tracking:', error);
-                }
-            } else {
-                console.log('❌ Neither browser nor IPC electron service available');
-            }
+        } catch (error) {
+            console.error('❌ Failed to start Electron tracking:', error);
         }
     };
+    useEffect(() => {
+        if (!activeEntry) return;
+        if (!(window as any).electron) return;
+
+        console.log('🧠 Attaching Electron activity listener');
+
+        const unsubscribe = (window as any).electron.onActivityStatus((data: any) => {
+            console.log('🧠 Electron activity:', data);
+
+            // 🔴 PAUSE
+            if (data.isIdle === true && !isTimerPausedRef.current) {
+                console.log('⛔ IDLE → pause timer');
+                handleTimerPause();
+                return;
+            }
+
+            // 🟢 RESUME
+            if (data.isIdle === false && isTimerPausedRef.current) {
+                console.log('▶️ ACTIVE → resume timer');
+                handleTimerResume(data.idleTime);
+            }
+        });
+
+        return () => {
+            console.log('🧹 Removing Electron activity listener');
+            unsubscribe?.();
+        };
+    }, [activeEntry?.id]);
+
 
     // Stop Electron tracking when component unmounts or user logs out
     useEffect(() => {
@@ -2242,8 +2095,8 @@ export default function TimeTrackerPage() {
                                                 {/* Electron Activity Tracking Status */}
                                                 {isElectron && (
                                                     <div className={`mt-2 p-2 rounded text-xs flex items-center justify-center space-x-1 ${electronTrackingEnabled
-                                                            ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
-                                                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                                                        ? 'bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200'
+                                                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
                                                         }`}>
                                                         {electronTrackingEnabled ? (
                                                             <>
