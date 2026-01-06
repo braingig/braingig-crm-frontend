@@ -23,7 +23,7 @@ interface BrowserElectronAPI {
 
 class BrowserElectronService {
   private static instance: BrowserElectronService;
-  private readonly ELECTRON_PORT = 8765;
+  private readonly ELECTRON_PORT = 8766;
   private readonly ELECTRON_URL = `http://localhost:${this.ELECTRON_PORT}`;
   private isAvailable: boolean = false;
   private eventSource: EventSource | null = null;
