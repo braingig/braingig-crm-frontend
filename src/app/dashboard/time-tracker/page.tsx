@@ -62,6 +62,7 @@ export default function TimeTrackerPage() {
     const persistentCacheRef = useRef<any>(null);
     const cacheInitializedRef = useRef(false);
     const isTimerPausedRef = useRef(false); // Keep current isTimerPaused value for activity listener
+    const activeEntryRef = useRef<any>(null); // Keep current activeEntry value for activity listener
     const isPausedRef = useRef(false); // Keep current isPaused value for timer interval
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null); // Store current timer interval
     const actualElapsedRef = useRef(0); // Track actual elapsed time independently of state
@@ -212,6 +213,11 @@ export default function TimeTrackerPage() {
     });
 
     const activeEntry = activeEntryData?.activeTimeEntry;
+
+    // Update activeEntryRef whenever activeEntry changes
+    useEffect(() => {
+        activeEntryRef.current = activeEntry;
+    }, [activeEntry]);
     const todayTimesheet = todayTimesheetData?.todayTimesheet;
     const todaySessions = todaySessionsData?.todaySessions || [];
     const employeeWorkType = workTypeData?.employeeWorkType || WorkType.REMOTE;
@@ -1656,7 +1662,7 @@ export default function TimeTrackerPage() {
                 console.log('🧠 Browser Electron activity:', data);
 
                 // Only process if timer is currently running
-                if (!activeEntry) {
+                if (!activeEntryRef.current) {
                     console.log('⏭️ Skipping activity event - no active timer');
                     return;
                 }
@@ -1686,7 +1692,7 @@ export default function TimeTrackerPage() {
                 console.log('🧠 Native Electron activity:', data);
 
                 // Only process if timer is currently running
-                if (!activeEntry || isTimerPausedRef.current === null) {
+                if (!activeEntryRef.current) {
                     console.log('⏭️ Skipping activity event - no active timer');
                     return;
                 }
