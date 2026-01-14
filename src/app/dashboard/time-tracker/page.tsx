@@ -555,7 +555,7 @@ export default function TimeTrackerPage() {
         }
 
         // First, try to get auth token
-        const token = localStorage.getItem('authToken') || '';
+        const token = localStorage.getItem('accessToken') || '';
         if (!token) {
             console.warn('⚠️ No auth token available — cannot start tracking');
             return;
