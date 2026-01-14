@@ -1655,6 +1655,12 @@ export default function TimeTrackerPage() {
             unsubscribe = browserElectronService.onActivityStatus((data: any) => {
                 console.log('🧠 Browser Electron activity:', data);
 
+                // Only process if timer is currently running
+                if (!activeEntry || isTimerPausedRef.current === null) {
+                    console.log('⏭️ Skipping activity event - no active timer');
+                    return;
+                }
+
                 // Convert type to isIdle for consistency
                 const isIdle = data.type === 'IDLE';
 
@@ -1678,6 +1684,12 @@ export default function TimeTrackerPage() {
             console.log('🖥️ Using native Electron IPC for activity events');
             unsubscribe = (window as any).electron.onActivityStatus((data: any) => {
                 console.log('🧠 Native Electron activity:', data);
+
+                // Only process if timer is currently running
+                if (!activeEntry || isTimerPausedRef.current === null) {
+                    console.log('⏭️ Skipping activity event - no active timer');
+                    return;
+                }
 
                 // Convert type to isIdle for consistency
                 const isIdle = data.type === 'IDLE';
