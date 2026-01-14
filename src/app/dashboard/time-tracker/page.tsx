@@ -1656,7 +1656,7 @@ export default function TimeTrackerPage() {
                 console.log('🧠 Browser Electron activity:', data);
 
                 // Only process if timer is currently running
-                if (!activeEntry || isTimerPausedRef.current === null) {
+                if (!activeEntry) {
                     console.log('⏭️ Skipping activity event - no active timer');
                     return;
                 }
