@@ -1655,15 +1655,18 @@ export default function TimeTrackerPage() {
             unsubscribe = browserElectronService.onActivityStatus((data: any) => {
                 console.log('🧠 Browser Electron activity:', data);
 
+                // Convert type to isIdle for consistency
+                const isIdle = data.type === 'IDLE';
+
                 // 🔴 PAUSE
-                if (data.isIdle === true && !isTimerPausedRef.current) {
+                if (isIdle && !isTimerPausedRef.current) {
                     console.log('⛔ IDLE → pause timer');
                     handleTimerPause();
                     return;
                 }
 
                 // 🟢 RESUME
-                if (data.isIdle === false && isTimerPausedRef.current) {
+                if (!isIdle && isTimerPausedRef.current) {
                     console.log('▶️ ACTIVE → resume timer');
                     handleTimerResume(data.idleTime);
                     return;
@@ -1676,15 +1679,18 @@ export default function TimeTrackerPage() {
             unsubscribe = (window as any).electron.onActivityStatus((data: any) => {
                 console.log('🧠 Native Electron activity:', data);
 
+                // Convert type to isIdle for consistency
+                const isIdle = data.type === 'IDLE';
+
                 // 🔴 PAUSE
-                if (data.isIdle === true && !isTimerPausedRef.current) {
+                if (isIdle && !isTimerPausedRef.current) {
                     console.log('⛔ IDLE → pause timer');
                     handleTimerPause();
                     return;
                 }
 
                 // 🟢 RESUME
-                if (data.isIdle === false && isTimerPausedRef.current) {
+                if (!isIdle && isTimerPausedRef.current) {
                     console.log('▶️ ACTIVE → resume timer');
                     handleTimerResume(data.idleTime);
                     return;
