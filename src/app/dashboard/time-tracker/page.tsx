@@ -554,49 +554,60 @@ export default function TimeTrackerPage() {
             return;
         }
 
-        if (!(window as any).electron) {
-            console.warn('⚠️ Electron not available in this environment');
+        // First, try to get auth token
+        const token = localStorage.getItem('authToken') || '';
+        if (!token) {
+            console.warn('⚠️ No auth token available — cannot start tracking');
             return;
         }
 
+        console.log('🔍 Checking browser Electron service availability...');
+        
+        // Try browser service first (for web-based Electron service)
         try {
-            console.log('🚀 Starting Electron activity tracking');
-            await (window as any).electron.startActivityTracking(currentUserId);
-
-            console.log('✅ Electron tracking started');
-
+            await browserElectronService.forceCheckAvailability();
+            if (browserElectronService.isServiceAvailable) {
+                console.log('🌐 Using browser Electron service for activity tracking');
+                const result = await browserElectronService.startActivityTracking(currentUserId, token);
+                if (result.success) {
+                    setElectronTrackingEnabled(true);
+                    console.log('✅ Browser Electron tracking started successfully');
+                    return;
+                } else {
+                    console.warn('⚠️ Browser Electron service failed to start tracking');
+                }
+            } else {
+                console.log('🌐 Browser Electron service not available');
+            }
         } catch (error) {
-            console.error('❌ Failed to start Electron tracking:', error);
+            console.warn('⚠️ Browser Electron service error:', error instanceof Error ? error.message : String(error));
         }
+
+        console.log('🔍 Checking native Electron API...');
+        
+        // Fallback to native Electron IPC
+        if ((window as any).electron) {
+            console.log('🖥️ Using native Electron IPC for activity tracking');
+            try {
+                const result = await electronService.startActivityTracking(currentUserId);
+                if (result) {
+                    setElectronTrackingEnabled(true);
+                    console.log('✅ Native Electron tracking started successfully');
+                    return;
+                } else {
+                    console.warn('⚠️ Native Electron tracking failed to start');
+                }
+            } catch (error) {
+                console.error('❌ Failed to start native Electron tracking:', error);
+            }
+        } else {
+            console.log('🖥️ Native Electron API not available');
+        }
+
+        console.warn('⚠️ Electron not available in this environment');
+        setElectronTrackingEnabled(false);
     };
-    useEffect(() => {
-        if (!activeEntry) return;
-        if (!(window as any).electron) return;
-
-        console.log('🧠 Attaching Electron activity listener');
-
-        const unsubscribe = (window as any).electron.onActivityStatus((data: any) => {
-            console.log('🧠 Electron activity:', data);
-
-            // 🔴 PAUSE
-            if (data.isIdle === true && !isTimerPausedRef.current) {
-                console.log('⛔ IDLE → pause timer');
-                handleTimerPause();
-                return;
-            }
-
-            // 🟢 RESUME
-            if (data.isIdle === false && isTimerPausedRef.current) {
-                console.log('▶️ ACTIVE → resume timer');
-                handleTimerResume(data.idleTime);
-            }
-        });
-
-        return () => {
-            console.log('🧹 Removing Electron activity listener');
-            unsubscribe?.();
-        };
-    }, [activeEntry?.id]);
+    
 
 
     // Stop Electron tracking when component unmounts or user logs out
@@ -1628,6 +1639,68 @@ export default function TimeTrackerPage() {
             isUpdatingStateRef.current = false;
         }, 50);
     };
+
+    // Activity listener setup - moved here after handler functions are declared
+    useEffect(() => {
+        if (!activeEntry) return;
+        if (!electronTrackingEnabled) return;
+
+        console.log('🧠 Attaching Electron activity listener');
+
+        let unsubscribe: (() => void) | null = null;
+
+        // Try browser service first
+        if (browserElectronService.isServiceAvailable) {
+            console.log('🌐 Using browser Electron service for activity events');
+            unsubscribe = browserElectronService.onActivityStatus((data: any) => {
+                console.log('🧠 Browser Electron activity:', data);
+
+                // 🔴 PAUSE
+                if (data.isIdle === true && !isTimerPausedRef.current) {
+                    console.log('⛔ IDLE → pause timer');
+                    handleTimerPause();
+                    return;
+                }
+
+                // 🟢 RESUME
+                if (data.isIdle === false && isTimerPausedRef.current) {
+                    console.log('▶️ ACTIVE → resume timer');
+                    handleTimerResume(data.idleTime);
+                    return;
+                }
+            });
+        }
+        // Fallback to native Electron IPC
+        else if ((window as any).electron) {
+            console.log('🖥️ Using native Electron IPC for activity events');
+            unsubscribe = (window as any).electron.onActivityStatus((data: any) => {
+                console.log('🧠 Native Electron activity:', data);
+
+                // 🔴 PAUSE
+                if (data.isIdle === true && !isTimerPausedRef.current) {
+                    console.log('⛔ IDLE → pause timer');
+                    handleTimerPause();
+                    return;
+                }
+
+                // 🟢 RESUME
+                if (data.isIdle === false && isTimerPausedRef.current) {
+                    console.log('▶️ ACTIVE → resume timer');
+                    handleTimerResume(data.idleTime);
+                    return;
+                }
+            });
+        } else {
+            console.log('⚠️ No Electron service available for activity monitoring');
+        }
+
+        return () => {
+            console.log('🧹 Removing Electron activity listener');
+            if (unsubscribe) {
+                unsubscribe();
+            }
+        };
+    }, [activeEntry?.id, electronTrackingEnabled, handleTimerPause, handleTimerResume]);
 
     const getProjectName = (projectId: string) => {
         const project = projects.find((p: any) => p.id === projectId);
