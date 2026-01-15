@@ -1308,7 +1308,7 @@ export default function TimeTrackerPage() {
         let totalSeconds = 0;
 
         if (todayTimesheet?.totalHours) {
-            totalSeconds += todayTimesheet.totalHours * 3600;
+            // totalSeconds += todayTimesheet.totalHours * 3600; // Removed to avoid double counting with time entries
         }
 
         const todayTimeEntries = timeEntriesData?.timeEntries?.filter((entry: any) => {
@@ -1339,7 +1339,7 @@ export default function TimeTrackerPage() {
         const weekTimesheets = (weekTimesheetsData as any)?.timesheets || [];
         weekTimesheets.forEach((timesheet: any) => {
             if (timesheet.totalHours) {
-                totalSeconds += timesheet.totalHours * 3600;
+                // totalSeconds += timesheet.totalHours * 3600; // Removed to avoid double counting
             }
         });
 
@@ -1377,7 +1377,7 @@ export default function TimeTrackerPage() {
         const monthTimesheets = (monthTimesheetsData as any)?.timesheets || [];
         monthTimesheets.forEach((timesheet: any) => {
             if (timesheet.totalHours) {
-                totalSeconds += timesheet.totalHours * 3600;
+                // totalSeconds += timesheet.totalHours * 3600; // Removed to avoid double counting
             }
         });
 
