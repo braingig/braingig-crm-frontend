@@ -572,7 +572,7 @@ export default function TimeTrackerPage() {
         }
 
         console.log('🔍 Checking browser Electron service availability...');
-        
+
         // Try browser service first (for web-based Electron service)
         try {
             await browserElectronService.forceCheckAvailability();
@@ -594,7 +594,7 @@ export default function TimeTrackerPage() {
         }
 
         console.log('🔍 Checking native Electron API...');
-        
+
         // Fallback to native Electron IPC
         if ((window as any).electron) {
             console.log('🖥️ Using native Electron IPC for activity tracking');
@@ -617,7 +617,7 @@ export default function TimeTrackerPage() {
         console.warn('⚠️ Electron not available in this environment');
         setElectronTrackingEnabled(false);
     };
-    
+
 
 
     // Stop Electron tracking when component unmounts or user logs out
@@ -732,6 +732,7 @@ export default function TimeTrackerPage() {
                     // Initialize refs
                     isPausedRef.current = false;
                     isTimerPausedRef.current = false;
+                    actualElapsedRef.current = 0; // Reset persistent elapsed ref
                     console.log('🆕 New timer initialized - isPausedRef:', isPausedRef.current, 'isTimerPausedRef:', isTimerPausedRef.current);
                 } else {
                     console.log('🔄 Existing entry with working time, preserving state');
@@ -752,6 +753,7 @@ export default function TimeTrackerPage() {
                 setIsPaused(false);
                 pauseStartTimeRef.current = null;
                 setIsTimerPaused(false);
+                actualElapsedRef.current = 0; // Reset persistent elapsed ref
                 // Don't reset isStopping here - let the stop mutation handlers manage it
             } else {
                 console.log('🚫 No active entry and no working time, state already clean');
