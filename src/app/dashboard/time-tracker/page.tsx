@@ -249,7 +249,7 @@ export default function TimeTrackerPage() {
         console.log('  - persistentCacheRef.current:', !!persistentCacheRef.current);
         console.log('  - cachedActiveEntry:', !!cachedActiveEntry);
         console.log('  - electronTrackingEnabled:', electronTrackingEnabled);
-    });
+    }, [activeEntry, isTimerPaused, timerStatus, showIdleNotification, electronTrackingEnabled]);
 
     // Update Electron when timer state changes
     useEffect(() => {
