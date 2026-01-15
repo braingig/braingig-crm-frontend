@@ -218,6 +218,46 @@ export default function TimeTrackerPage() {
     const allProjects = projectsData?.projects || [];
     const myTasks = myTasksData?.tasks || [];
 
+    // Update Electron about timer state changes
+    const updateElectronTimerState = async (isActive: boolean) => {
+        try {
+            if (electronTrackingEnabled && browserElectronService.isServiceAvailable) {
+                const response = await fetch('http://127.0.0.1:8766/timer-state', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ isActive })
+                });
+                
+                if (response.ok) {
+                    console.log(`🔗 Updated Electron timer state: active = ${isActive}`);
+                }
+            }
+        } catch (error) {
+            console.error('Failed to update Electron timer state:', error);
+        }
+    };
+
+    // Component render and state tracking
+    useEffect(() => {
+        console.log('🔍 [RENDER] Component rendering - Timer state check:');
+        console.log('  - activeEntry:', !!activeEntry, activeEntry?.id ? `(ID: ${activeEntry.id})` : '');
+        console.log('  - isTimerPaused:', isTimerPaused);
+        console.log('  - timerStatus:', timerStatus);
+        console.log('  - showIdleNotification:', showIdleNotification);
+        console.log('  - persistentCacheRef.current:', !!persistentCacheRef.current);
+        console.log('  - cachedActiveEntry:', !!cachedActiveEntry);
+        console.log('  - electronTrackingEnabled:', electronTrackingEnabled);
+    });
+
+    // Update Electron when timer state changes
+    useEffect(() => {
+        const isTimerActuallyRunning = !!activeEntry && !isTimerPaused && timerStatus === 'running';
+        console.log('🔍 [ELECTRON SYNC] Timer state changed - isTimerActuallyRunning:', isTimerActuallyRunning);
+        updateElectronTimerState(isTimerActuallyRunning);
+    }, [activeEntry, isTimerPaused, timerStatus, electronTrackingEnabled]);
+
     // Initialize persistent cache on component mount
     useEffect(() => {
         if (!cacheInitializedRef.current) {
@@ -827,7 +867,9 @@ export default function TimeTrackerPage() {
     //             if (isTimerPaused && timerStatus === 'idle') {
     //                 setIsTimerPaused(false);
     //                 setTimerStatus('running');
-    //                 setShowIdleNotification(false);
+    //                 console.log('🔍 [NOTIFICATION] setShowIdleNotification(false) - Timer resumed, hiding idle notification');
+      //                 console.log('🔍 [NOTIFICATION] setShowIdleNotification(false) - Timer resumed, hiding idle notification');
+            setShowIdleNotification(false);
     //             }
     //         }, 50); // Reduced debounce for better responsiveness
     //     };
@@ -895,7 +937,7 @@ export default function TimeTrackerPage() {
     //             setTimerStatus('idle');
     //             setIdleStartTime(now);
     //             setPauseStartTime(now);
-    //             setShowIdleNotification(true);
+    //             console.log('🔍 [NOTIFICATION] setShowIdleNotification(true) - Timer is idle, showing idle notification');
     //         }
 
     //         // Auto-hide idle notification after 10 seconds
@@ -1536,6 +1578,7 @@ export default function TimeTrackerPage() {
             setTimerStatus('idle');
             const now = Date.now();
             pauseStartTimeRef.current = now;
+            console.log('🔍 [NOTIFICATION] setShowIdleNotification(true) - Timer paused, showing idle notification');
             setShowIdleNotification(true);
             console.log('🔴 PAUSE START TIME SET:', now, '- BATCHED STATE UPDATE COMPLETED - timer paused at synced time:', currentRefTime, '(was state: elapsed:', elapsed, 'totalWorkingTime:', totalWorkingTime, ')');
         });
@@ -1614,6 +1657,7 @@ export default function TimeTrackerPage() {
             setIsPaused(false);
             setIsTimerPaused(false);
             setTimerStatus('running'); // Reset timer status to running
+            console.log('🔍 [NOTIFICATION] setShowIdleNotification(false) - Timer resumed, hiding idle notification');
             setShowIdleNotification(false);
             pauseStartTimeRef.current = null;
             setIdleStartTime(null); // Also clear idle start time
@@ -2420,10 +2464,15 @@ export default function TimeTrackerPage() {
                                                     timestamp: Date.now()
                                                 };
                                                 // Manually trigger the idle logic
+                                                console.log('🔍 [DEBUG IDLE BUTTON] Checking timer state - persistentCacheRef.current:', !!persistentCacheRef.current, 'cachedActiveEntry:', !!cachedActiveEntry, 'activeEntry:', !!activeEntry);
                                                 if (persistentCacheRef.current || cachedActiveEntry || activeEntry) {
+                                                    console.log('🔍 [DEBUG IDLE BUTTON] Timer detected as running, triggering idle state');
                                                     handleTimerPause();
                                                     setTimerStatus('idle');
+                                                    console.log('🔍 [NOTIFICATION] setShowIdleNotification(true) - Debug button triggered idle notification');
                                                     setShowIdleNotification(true);
+                                                } else {
+                                                    console.log('🔍 [DEBUG IDLE BUTTON] No timer running - skipping idle trigger');
                                                 }
                                             }}
                                             className="px-3 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
@@ -2434,7 +2483,9 @@ export default function TimeTrackerPage() {
                                             onClick={() => {
                                                 console.log('🧪 Manual ACTIVE test triggered');
                                                 if (isTimerPausedRef.current) {
+                                                    console.log('🔍 [DEBUG ACTIVE BUTTON] Timer is paused, resuming and hiding notification');
                                                     handleTimerResume();
+                                                    console.log('🔍 [NOTIFICATION] setShowIdleNotification(false) - Debug button hiding idle notification');
                                                     setShowIdleNotification(false);
                                                 }
                                             }}
@@ -3045,7 +3096,14 @@ export default function TimeTrackerPage() {
             )}
 
             {/* Idle Time Detection Toast Notification */}
-            {showIdleNotification && (
+            {showIdleNotification && (() => {
+                console.log('🔍 [NOTIFICATION RENDER] Idle notification being rendered - Current state:');
+                console.log('  - activeEntry:', !!activeEntry, activeEntry?.id ? `(ID: ${activeEntry.id})` : '');
+                console.log('  - isTimerPaused:', isTimerPaused);
+                console.log('  - timerStatus:', timerStatus);
+                console.log('  - showIdleNotification:', showIdleNotification);
+                return true;
+            })() && (
                 <div className="fixed bottom-4 right-4 z-50 animate-pulse">
                     <div className="bg-orange-50 border-l-4 border-orange-400 p-4 rounded-lg shadow-lg max-w-sm">
                         <div className="flex items-center">
@@ -3062,7 +3120,10 @@ export default function TimeTrackerPage() {
                             </div>
                             <div className="ml-auto pl-3">
                                 <button
-                                    onClick={() => setShowIdleNotification(false)}
+                                    onClick={() => {
+                                        console.log('🔍 [NOTIFICATION] User dismissed idle notification');
+                                        setShowIdleNotification(false);
+                                    }}
                                     className="inline-flex text-orange-400 hover:text-orange-600 focus:outline-none"
                                 >
                                     <span className="sr-only">Dismiss</span>
