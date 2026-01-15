@@ -217,7 +217,6 @@ export default function TimeTrackerPage() {
     const employeeWorkType = workTypeData?.employeeWorkType || WorkType.REMOTE;
     const allProjects = projectsData?.projects || [];
     const myTasks = myTasksData?.tasks || [];
-
     // Initialize persistent cache on component mount
     useEffect(() => {
         if (!cacheInitializedRef.current) {
