@@ -453,6 +453,7 @@ export default function TimeTrackerPage() {
             }
 
             setCachedActiveEntry(null); // Clear cached entry
+            persistentCacheRef.current = null; // Also clear persistent cache
             refetchActiveEntry();
             refetchTimeEntries();
             refetchTodaySessions(); // Also refresh today sessions
@@ -487,6 +488,7 @@ export default function TimeTrackerPage() {
                 refetchTimeEntries();
                 refetchTodaySessions();
                 setCachedActiveEntry(null);
+                persistentCacheRef.current = null; // Also clear persistent cache
                 // Only show alert if it's unexpected (i.e., we thought there was an active timer)
                 const currentActiveEntry = activeEntry || persistentCacheRef.current || cachedActiveEntry;
                 if (currentActiveEntry) {
@@ -604,7 +606,8 @@ export default function TimeTrackerPage() {
             console.log('🖥️ Native Electron API not available');
         }
 
-        console.warn('⚠️ Electron not available in this environment');
+        // This is normal when running in a regular browser environment
+        console.log('ℹ️ Electron services not available - running in browser mode (activity tracking disabled)');
         setElectronTrackingEnabled(false);
     };
     
@@ -908,9 +911,8 @@ export default function TimeTrackerPage() {
 
     // Enhanced timer effect - tracks actual working time without idle periods
     useEffect(() => {
-        // Only use actual active entry, not cached entries
-        // This prevents timer from running when it should be stopped
-        const timerEntry = activeEntry;
+        // Use persistent cache reference to avoid React re-mount issues
+        const timerEntry = activeEntry || persistentCacheRef.current || cachedActiveEntry;
 
 
 
@@ -1463,12 +1465,12 @@ export default function TimeTrackerPage() {
     };
 
     const handleTimerPause = () => {
-        // Check for actual active entry from backend, not cached entries
-        // This prevents pause/resume when timer is not actually running
-        const currentEntry = activeEntry;
-        console.log('🔴 handleTimerPause called - currentEntry:', !!currentEntry, 'activeEntry:', !!activeEntry, 'cachedActiveEntry:', !!cachedActiveEntry, 'persistentCacheRef:', !!persistentCacheRef.current);
+        // Use persistent cache reference to avoid React re-mount issues
+        const currentEntry = persistentCacheRef.current || cachedActiveEntry;
+        console.log('🔴 handleTimerPause called - currentEntry:', !!currentEntry, 'cachedActiveEntry:', !!cachedActiveEntry, 'persistentCacheRef:', !!persistentCacheRef.current);
 
-        if (!currentEntry) {
+        // Additional check: Only allow pause if timer is actually running (not just cached)
+        if (!currentEntry || !activeEntry) {
             console.log('🔴 Cannot pause - no active timer running');
             return;
         }
@@ -1545,10 +1547,10 @@ export default function TimeTrackerPage() {
     };
 
     const handleTimerResume = (electronIdleTime: number = 0) => {
-        // Check for actual active entry from backend, not cached entries
-        // This prevents pause/resume when timer is not actually running
-        const currentEntry = activeEntry;
-        if (!currentEntry) {
+        // Use persistent cache reference to avoid React re-mount issues
+        const currentEntry = persistentCacheRef.current || cachedActiveEntry;
+        // Additional check: Only allow resume if timer is actually running (not just cached)
+        if (!currentEntry || !activeEntry) {
             console.log('🟢 Cannot resume - no active timer running');
             return;
         }
@@ -2274,6 +2276,7 @@ export default function TimeTrackerPage() {
                                                             // If we reach here, the timer was genuinely already stopped
                                                             console.log('✅ Timer was already stopped, just refreshing UI');
                                                             setCachedActiveEntry(null);
+                                                            persistentCacheRef.current = null; // Also clear persistent cache
                                                             // Refresh all queries to ensure timesheet is updated
                                                             refetchActiveEntry();
                                                             refetchTimeEntries();
@@ -2407,13 +2410,11 @@ export default function TimeTrackerPage() {
                                                     idleTime: 60,
                                                     timestamp: Date.now()
                                                 };
-                                                // Manually trigger the idle logic - only if timer is actually running
-                                                if (activeEntry) {
+                                                // Manually trigger the idle logic
+                                                if (persistentCacheRef.current || cachedActiveEntry || activeEntry) {
                                                     handleTimerPause();
                                                     setTimerStatus('idle');
                                                     setShowIdleNotification(true);
-                                                } else {
-                                                    console.log('⚠️ Cannot test idle - no active timer running');
                                                 }
                                             }}
                                             className="px-3 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
