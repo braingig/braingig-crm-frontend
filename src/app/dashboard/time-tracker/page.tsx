@@ -218,45 +218,7 @@ export default function TimeTrackerPage() {
     const allProjects = projectsData?.projects || [];
     const myTasks = myTasksData?.tasks || [];
 
-    // Update Electron about timer state changes
-    const updateElectronTimerState = async (isActive: boolean) => {
-        try {
-            if (electronTrackingEnabled && browserElectronService.isServiceAvailable) {
-                const response = await fetch('http://127.0.0.1:8766/timer-state', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ isActive })
-                });
-                
-                if (response.ok) {
-                    console.log(`🔗 Updated Electron timer state: active = ${isActive}`);
-                }
-            }
-        } catch (error) {
-            console.error('Failed to update Electron timer state:', error);
-        }
-    };
 
-    // Component render and state tracking
-    useEffect(() => {
-        console.log('🔍 [RENDER] Component rendering - Timer state check:');
-        console.log('  - activeEntry:', !!activeEntry, activeEntry?.id ? `(ID: ${activeEntry.id})` : '');
-        console.log('  - isTimerPaused:', isTimerPaused);
-        console.log('  - timerStatus:', timerStatus);
-        console.log('  - showIdleNotification:', showIdleNotification);
-        console.log('  - persistentCacheRef.current:', !!persistentCacheRef.current);
-        console.log('  - cachedActiveEntry:', !!cachedActiveEntry);
-        console.log('  - electronTrackingEnabled:', electronTrackingEnabled);
-    }, [activeEntry, isTimerPaused, timerStatus, showIdleNotification, electronTrackingEnabled]);
-
-    // Update Electron when timer state changes
-    useEffect(() => {
-        const isTimerActuallyRunning = !!activeEntry && !isTimerPaused && timerStatus === 'running';
-        console.log('🔍 [ELECTRON SYNC] Timer state changed - isTimerActuallyRunning:', isTimerActuallyRunning);
-        updateElectronTimerState(isTimerActuallyRunning);
-    }, [activeEntry, isTimerPaused, timerStatus, electronTrackingEnabled]);
 
     // Initialize persistent cache on component mount
     useEffect(() => {
