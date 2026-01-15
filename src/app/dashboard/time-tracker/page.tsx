@@ -66,6 +66,8 @@ export default function TimeTrackerPage() {
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null); // Store current timer interval
     const actualElapsedRef = useRef(0); // Track actual elapsed time independently of state
     const isUpdatingStateRef = useRef(false); // Prevent rapid state updates
+    const lastTaskDetailsRef = useRef<{ taskId: string | null; projectId: string | null; description: string } | null>(null); // Store task details for resuming
+    const wasIdlePausedRef = useRef<boolean>(false); // Flag to track if pause was due to idle
     const [timerRestartKey, setTimerRestartKey] = useState(0); // Force timer restart on resume
     const [isTabVisible, setIsTabVisible] = useState(true);
     const [isStopping, setIsStopping] = useState(false);
@@ -1548,6 +1550,31 @@ export default function TimeTrackerPage() {
             console.log('🔴 PAUSE START TIME SET:', now, '- BATCHED STATE UPDATE COMPLETED - timer paused at synced time:', currentRefTime, '(was state: elapsed:', elapsed, 'totalWorkingTime:', totalWorkingTime, ')');
         });
 
+        // Stop the timer on the backend to prevent idle time accumulation
+        // Capture current details first
+        if (currentEntry) {
+            lastTaskDetailsRef.current = {
+                taskId: currentEntry.taskId,
+                description: currentEntry.description,
+                projectId: currentEntry.task?.projectId // Assuming task has projectId, or we rely on description/selection
+            };
+            // If we have selectedTask state available, prefer using that for more accuracy if it matches
+            if (selectedTask && selectedTask === currentEntry.taskId) {
+                lastTaskDetailsRef.current.taskId = selectedTask;
+            }
+            console.log('🔴 Captured task details for resume:', lastTaskDetailsRef.current);
+            wasIdlePausedRef.current = true;
+
+            // Call stop timer mutation
+            if (stopTimer) {
+                stopTimer().then(() => {
+                    console.log('🔴 Timer stopped on backend due to idle pause');
+                }).catch(err => {
+                    console.error('🔴 Failed to stop timer on backend:', err);
+                });
+            }
+        }
+
         console.log('🔴 PAUSE STATE SET - isTimerPaused should now be true');
 
         // Reset the updating flag immediately
@@ -1644,6 +1671,25 @@ export default function TimeTrackerPage() {
             }, 10);
 
             console.log('🟢 BATCHED RESUME UPDATE COMPLETED - timer corrected to:', actualWorkTime, 'seconds (subtracted', idleDuration, 'idle seconds from', pausedWorkingTime, ')');
+
+            // Restart timer on backend if it was idle paused
+            if (wasIdlePausedRef.current && lastTaskDetailsRef.current && startTimer) {
+                console.log('🟢 Restarting timer on backend with details:', lastTaskDetailsRef.current);
+                startTimer({
+                    variables: {
+                        input: {
+                            taskId: lastTaskDetailsRef.current.taskId,
+                            description: lastTaskDetailsRef.current.description
+                        }
+                    }
+                }).then(() => {
+                    console.log('🟢 Timer restarted successfully on backend');
+                    wasIdlePausedRef.current = false;
+                    lastTaskDetailsRef.current = null;
+                }).catch(err => {
+                    console.error('🟢 Failed to restart timer on backend:', err);
+                });
+            }
         });
 
         // Small delay to ensure all state updates are processed before timer restarts
@@ -2684,7 +2730,20 @@ export default function TimeTrackerPage() {
                                                     <div className="flex items-center">
                                                         <ClockIcon className="h-4 w-4 text-gray-400 mr-1" />
                                                         <span className="text-sm text-gray-900 dark:text-white">
-                                                            {entry.duration ? formatDuration(Math.floor(entry.duration * 60)) : (entry.endTime ? calculateDuration(entry.startTime, entry.endTime) : calculateDuration(entry.startTime))}
+                                                            {(() => {
+                                                                if (entry.endTime && entry.duration) {
+                                                                    // Heuristic: Combine backend minutes (handling idle deductions) with raw seconds precision
+                                                                    const rawSeconds = Math.floor((new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / 1000);
+                                                                    const secondsPart = rawSeconds % 60;
+                                                                    // Use floor of backend duration as minutes base, add original seconds offset
+                                                                    const totalSeconds = (Math.floor(entry.duration) * 60) + secondsPart;
+                                                                    return formatDuration(totalSeconds);
+                                                                }
+                                                                // Fallback for active entries or missing duration
+                                                                return entry.endTime
+                                                                    ? calculateDuration(entry.startTime, entry.endTime)
+                                                                    : calculateDuration(entry.startTime);
+                                                            })()}
                                                         </span>
                                                     </div>
                                                 </td>
