@@ -526,10 +526,21 @@ export default function TimeTrackerPage() {
         const isRunningInElectron = electronService.isRunningInElectron;
         setIsElectron(isRunningInElectron);
 
-        // Always try to initialize tracking if we have a user ID
-        if (currentUserId) {
-            // Initialize Electron activity tracking (will try browser service first, then IPC)
-            initializeElectronTracking();
+        // Only initialize tracking if we have a user ID AND an active timer
+        // This ensures idle notifications only appear when the timer is actually running
+        if (currentUserId && activeEntry?.id) {
+            if (!electronTrackingEnabled) {
+                console.log('✅ Active timer detected - starting Electron activity tracking');
+                // Initialize Electron activity tracking (will try browser service first, then IPC)
+                initializeElectronTracking();
+            }
+        } else {
+            // Stop tracking if it was enabled but activeEntry is gone
+            if (electronTrackingEnabled) {
+                console.log('🛑 No active timer - stopping Electron activity tracking');
+                setElectronTrackingEnabled(false);
+                // Note: Actual service stopping is handled by the effect watching electronTrackingEnabled
+            }
         }
 
         return () => {
@@ -543,7 +554,7 @@ export default function TimeTrackerPage() {
                 browserElectronService.stopActivityTracking();
             }
         };
-    }, [currentUserId]);
+    }, [currentUserId, activeEntry?.id, electronTrackingEnabled]);
 
     const initializeElectronTracking = async () => {
         console.log('🔧 Initializing Electron tracking...');
