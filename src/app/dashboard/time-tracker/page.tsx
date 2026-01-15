@@ -1647,10 +1647,17 @@ export default function TimeTrackerPage() {
 
     // Activity listener setup - moved here after handler functions are declared
     useEffect(() => {
-        if (!activeEntry) return;
-        if (!electronTrackingEnabled) return;
+        console.log('🔍 [ACTIVITY SETUP] Checking conditions - activeEntry:', !!activeEntry, 'electronTrackingEnabled:', electronTrackingEnabled);
+        if (!activeEntry) {
+            console.log('🔍 [ACTIVITY SETUP] Skipping - no activeEntry');
+            return;
+        }
+        if (!electronTrackingEnabled) {
+            console.log('🔍 [ACTIVITY SETUP] Skipping - electronTrackingEnabled is false');
+            return;
+        }
 
-        console.log('🧠 Attaching Electron activity listener');
+        console.log('🧠 [ACTIVITY SETUP] Attaching Electron activity listener - activeEntry ID:', activeEntry.id);
 
         let unsubscribe: (() => void) | null = null;
 
@@ -1662,23 +1669,24 @@ export default function TimeTrackerPage() {
 
                 // Only process if timer is currently running
                 if (!activeEntry) {
-                    console.log('⏭️ Skipping activity event - no active timer');
+                    console.log('🔍 [ACTIVITY EVENT] Skipping activity event - no active timer');
                     return;
                 }
 
                 // Convert type to isIdle for consistency
                 const isIdle = data.type === 'IDLE';
+                console.log('🔍 [ACTIVITY EVENT] Processing - isIdle:', isIdle, 'isTimerPausedRef.current:', isTimerPausedRef.current, 'activeEntry ID:', activeEntry?.id);
 
                 // 🔴 PAUSE
                 if (isIdle && !isTimerPausedRef.current) {
-                    console.log('⛔ IDLE → pause timer');
+                    console.log('🔍 [ACTIVITY EVENT] ⛔ IDLE → pause timer - calling handleTimerPause()');
                     handleTimerPause();
                     return;
                 }
 
                 // 🟢 RESUME
                 if (!isIdle && isTimerPausedRef.current) {
-                    console.log('▶️ ACTIVE → resume timer');
+                    console.log('🔍 [ACTIVITY EVENT] ▶️ ACTIVE → resume timer - calling handleTimerResume() with idleTime:', data.idleTime);
                     handleTimerResume(data.idleTime);
                     return;
                 }
@@ -1688,27 +1696,28 @@ export default function TimeTrackerPage() {
         else if ((window as any).electron) {
             console.log('🖥️ Using native Electron IPC for activity events');
             unsubscribe = (window as any).electron.onActivityStatus((data: any) => {
-                console.log('🧠 Native Electron activity:', data);
+                console.log('🧠 [NATIVE ELECTRON] activity:', data);
 
                 // Only process if timer is currently running
                 if (!activeEntry || isTimerPausedRef.current === null) {
-                    console.log('⏭️ Skipping activity event - no active timer');
+                    console.log('🔍 [NATIVE ELECTRON] Skipping activity event - no active timer');
                     return;
                 }
 
                 // Convert type to isIdle for consistency
                 const isIdle = data.type === 'IDLE';
+                console.log('🔍 [NATIVE ELECTRON] Processing - isIdle:', isIdle, 'isTimerPausedRef.current:', isTimerPausedRef.current, 'activeEntry ID:', activeEntry?.id);
 
                 // 🔴 PAUSE
                 if (isIdle && !isTimerPausedRef.current) {
-                    console.log('⛔ IDLE → pause timer');
+                    console.log('🔍 [NATIVE ELECTRON] ⛔ IDLE → pause timer - calling handleTimerPause()');
                     handleTimerPause();
                     return;
                 }
 
                 // 🟢 RESUME
                 if (!isIdle && isTimerPausedRef.current) {
-                    console.log('▶️ ACTIVE → resume timer');
+                    console.log('🔍 [NATIVE ELECTRON] ▶️ ACTIVE → resume timer - calling handleTimerResume()');
                     handleTimerResume(data.idleTime);
                     return;
                 }
