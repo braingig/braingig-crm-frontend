@@ -2684,7 +2684,7 @@ export default function TimeTrackerPage() {
                                                     <div className="flex items-center">
                                                         <ClockIcon className="h-4 w-4 text-gray-400 mr-1" />
                                                         <span className="text-sm text-gray-900 dark:text-white">
-                                                            {entry.endTime ? calculateDuration(entry.startTime, entry.endTime) : calculateDuration(entry.startTime)}
+                                                            {entry.duration ? formatDuration(Math.floor(entry.duration * 60)) : (entry.endTime ? calculateDuration(entry.startTime, entry.endTime) : calculateDuration(entry.startTime))}
                                                         </span>
                                                     </div>
                                                 </td>
