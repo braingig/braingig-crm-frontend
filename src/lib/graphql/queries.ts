@@ -240,8 +240,8 @@ export const START_TIME_ENTRY = gql`
 `;
 
 export const STOP_TIME_ENTRY = gql`
-  mutation StopTimeEntry {
-    stopTimeEntry {
+  mutation StopTimeEntry($duration: Float!) {
+    stopTimeEntry(duration: $duration) {
       id
       startTime
       endTime
