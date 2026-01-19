@@ -14,7 +14,6 @@ import {
 } from '@heroicons/react/24/outline';
 import {
     ChevronDownIcon,
-    ChevronRightIcon,
     UserCircleIcon,
 } from '@heroicons/react/24/solid';
 import {
@@ -23,7 +22,6 @@ import {
     GET_USERS,
     GET_ME,
     CREATE_TASK,
-    CREATE_SUB_TASK,
     UPDATE_TASK,
     DELETE_TASK,
 } from '@/lib/graphql/queries';
@@ -59,16 +57,14 @@ const columnColors: { [key: string]: string } = {
     COMPLETED: 'bg-green-50 border-green-200',
 };
 
-const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubTask, users }: {
+const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, users }: {
     task: any;
     onEdit: (task: any) => void;
     onDelete: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
-    onAddSubTask: (parentTask: any) => void;
     users: any[];
 }) => {
     const [showMenu, setShowMenu] = useState(false);
-    const [showSubTasks, setShowSubTasks] = useState(true);
     const {
         attributes,
         listeners,
@@ -89,8 +85,6 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubTas
         onStatusChange(task.id, newStatus);
     };
 
-    const hasSubTasks = task.subTasks && task.subTasks.length > 0;
-
     return (
         <div
             ref={setNodeRef}
@@ -104,23 +98,6 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubTas
             >
                 <div className="flex items-start justify-between mb-2">
                     <div className="flex items-center space-x-2 flex-1">
-                        {hasSubTasks && (
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setShowSubTasks(!showSubTasks);
-                                }}
-                                onMouseDown={(e) => e.stopPropagation()}
-                                onPointerDown={(e) => e.stopPropagation()}
-                                className="flex-shrink-0 text-gray-400 hover:text-gray-600"
-                            >
-                                {showSubTasks ? (
-                                    <ChevronDownIcon className="h-4 w-4" />
-                                ) : (
-                                    <ChevronRightIcon className="h-4 w-4" />
-                                )}
-                            </button>
-                        )}
                         <h3 className="text-sm font-medium text-gray-900 line-clamp-2 hover:bg-gray-50 px-1 py-0.5 rounded pr-3">
                             {task.title}
                         </h3>
@@ -189,17 +166,6 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubTas
                 {showMenu && (
                     <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
                         <div className="py-1">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    onAddSubTask(task);
-                                    setShowMenu(false);
-                                }}
-                                className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
-                            >
-                                <PlusIcon className="h-4 w-4 mr-2" />
-                                Add Sub-Task
-                            </button>
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -274,149 +240,6 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubTas
                     </button>
                 )}
             </div>
-
-            {/* Sub-Tasks */}
-            {hasSubTasks && showSubTasks && (
-                <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
-                    <div className="text-xs font-medium text-gray-500 mb-2">
-                        Sub-Tasks ({task.subTasks.length})
-                    </div>
-                    {task.subTasks.map((subTask: any) => (
-                        <SubTaskCard
-                            key={subTask.id}
-                            task={subTask}
-                            depth={1}
-                            onEdit={onEdit}
-                            onDelete={onDelete}
-                            onStatusChange={onStatusChange}
-                            onAddSubTask={onAddSubTask}
-                            users={users}
-                        />
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
-// Sub-task card component (non-draggable, nested display)
-const SubTaskCard = ({ task, depth = 1, onEdit, onDelete, onStatusChange, onAddSubTask, users }: {
-    task: any;
-    depth?: number;
-    onEdit: (task: any) => void;
-    onDelete: (task: any) => void;
-    onStatusChange: (taskId: string, newStatus: string) => void;
-    onAddSubTask: (parentTask: any) => void;
-    users: any[];
-}) => {
-    const [showMenu, setShowMenu] = useState(false);
-    const [showSubTasks, setShowSubTasks] = useState(true);
-    const hasSubTasks = task.subTasks && task.subTasks.length > 0;
-    const canAddSubTask = depth < 2; // Only allow adding sub-tasks up to depth 2
-
-    return (
-        <div className="bg-gray-50 rounded-md border border-gray-200 p-3 ml-4">
-            <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center space-x-2 flex-1">
-                    {hasSubTasks && (
-                        <button
-                            onClick={() => setShowSubTasks(!showSubTasks)}
-                            className="flex-shrink-0 text-gray-400 hover:text-gray-600"
-                        >
-                            {showSubTasks ? (
-                                <ChevronDownIcon className="h-3 w-3" />
-                            ) : (
-                                <ChevronRightIcon className="h-3 w-3" />
-                            )}
-                        </button>
-                    )}
-                    <h4 className="text-xs font-medium text-gray-900 flex-1">
-                        {task.title}
-                    </h4>
-                    <button
-                        onClick={() => setShowMenu(!showMenu)}
-                        className="text-gray-400 hover:text-gray-600"
-                    >
-                        <EllipsisHorizontalIcon className="h-3 w-3" />
-                    </button>
-                </div>
-            </div>
-
-            {task.description && (
-                <p className="text-xs text-gray-600 mb-2 line-clamp-1">
-                    {task.description}
-                </p>
-            )}
-
-            <div className="flex items-center gap-2 flex-wrap">
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs ${priorityColors[task.priority]}`}>
-                    {task.priority}
-                </span>
-                <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-xs ${task.status === 'TODO' ? 'bg-gray-100 text-gray-700' :
-                    task.status === 'IN_PROGRESS' ? 'bg-blue-100 text-blue-700' :
-                        task.status === 'REVIEW' ? 'bg-purple-100 text-purple-700' :
-                            'bg-green-100 text-green-700'
-                    }`}>
-                    {task.status.replace('_', ' ')}
-                </span>
-            </div>
-
-            {showMenu && (
-                <div className="absolute right-0 mt-1 w-40 bg-white rounded-md shadow-lg z-50 border border-gray-200">
-                    <div className="py-1">
-                        {canAddSubTask && (
-                            <button
-                                onClick={() => {
-                                    onAddSubTask(task);
-                                    setShowMenu(false);
-                                }}
-                                className="flex items-center px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 w-full"
-                            >
-                                <PlusIcon className="h-3 w-3 mr-2" />
-                                Add Sub-Task
-                            </button>
-                        )}
-                        <button
-                            onClick={() => {
-                                onEdit(task);
-                                setShowMenu(false);
-                            }}
-                            className="flex items-center px-3 py-1.5 text-xs text-gray-700 hover:bg-gray-100 w-full"
-                        >
-                            <PencilIcon className="h-3 w-3 mr-2" />
-                            Edit
-                        </button>
-                        <button
-                            onClick={() => {
-                                onDelete(task);
-                                setShowMenu(false);
-                            }}
-                            className="flex items-center px-3 py-1.5 text-xs text-red-600 hover:bg-red-50 w-full"
-                        >
-                            <TrashIcon className="h-3 w-3 mr-2" />
-                            Delete
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {/* Nested Sub-Tasks */}
-            {hasSubTasks && showSubTasks && (
-                <div className="mt-2 space-y-2">
-                    {task.subTasks.map((subTask: any) => (
-                        <SubTaskCard
-                            key={subTask.id}
-                            task={subTask}
-                            depth={depth + 1}
-                            onEdit={onEdit}
-                            onDelete={onDelete}
-                            onStatusChange={onStatusChange}
-                            onAddSubTask={onAddSubTask}
-                            users={users}
-                        />
-                    ))}
-                </div>
-            )}
         </div>
     );
 };
@@ -430,7 +253,6 @@ const DroppableKanbanColumn = ({
     onEditTask,
     onDeleteTask,
     onStatusChange,
-    onAddSubTask,
     users
 }: {
     title: string;
@@ -440,7 +262,6 @@ const DroppableKanbanColumn = ({
     onEditTask: (task: any) => void;
     onDeleteTask: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
-    onAddSubTask: (parentTask: any) => void;
     users: any[];
 }) => {
     const { setNodeRef, isOver } = useDroppable({
@@ -466,7 +287,6 @@ const DroppableKanbanColumn = ({
                         onEdit={onEditTask}
                         onDelete={onDeleteTask}
                         onStatusChange={onStatusChange}
-                        onAddSubTask={onAddSubTask}
                         users={users}
                     />
                 ))}
@@ -509,7 +329,6 @@ const TaskCard = ({ task }: { task: any }) => {
 
 const TaskModal = ({
     task,
-    parentTask,
     isOpen,
     onClose,
     onSave,
@@ -517,7 +336,6 @@ const TaskModal = ({
     users
 }: {
     task: any | null;
-    parentTask: any | null;
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: any) => void;
@@ -545,17 +363,6 @@ const TaskModal = ({
                 dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
                 estimatedTime: task.estimatedTime?.toString() || '',
             });
-        } else if (parentTask) {
-            // Pre-fill with parent task's project
-            setFormData({
-                title: '',
-                description: '',
-                priority: 'MEDIUM',
-                projectId: parentTask.projectId || '',
-                assignedToId: '',
-                dueDate: '',
-                estimatedTime: '',
-            });
         } else {
             setFormData({
                 title: '',
@@ -567,7 +374,7 @@ const TaskModal = ({
                 estimatedTime: '',
             });
         }
-    }, [task, parentTask, isOpen]);
+    }, [task, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -614,16 +421,9 @@ const TaskModal = ({
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
                 <div className="flex justify-between items-center mb-4">
-                    <div>
-                        <h2 className="text-lg font-semibold">
-                            {task ? 'Edit Task' : parentTask ? 'Create Sub-Task' : 'Create New Task'}
-                        </h2>
-                        {parentTask && (
-                            <p className="text-sm text-gray-500 mt-1">
-                                Parent: {parentTask.title}
-                            </p>
-                        )}
-                    </div>
+                    <h2 className="text-lg font-semibold">
+                        {task ? 'Edit Task' : 'Create New Task'}
+                    </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
                         <XMarkIcon className="h-5 w-5" />
                     </button>
@@ -765,7 +565,6 @@ export default function TasksPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingTask, setEditingTask] = useState<any | null>(null);
-    const [parentTaskForSubTask, setParentTaskForSubTask] = useState<any | null>(null);
     const [filters, setFilters] = useState({
         projectId: '',
         assignedToId: '',
@@ -842,13 +641,6 @@ export default function TasksPage() {
 
     const handleEditTask = (task: any) => {
         setEditingTask(task);
-        setParentTaskForSubTask(null);
-        setShowModal(true);
-    };
-
-    const handleAddSubTask = (parentTask: any) => {
-        setParentTaskForSubTask(parentTask);
-        setEditingTask(null);
         setShowModal(true);
     };
 
@@ -856,11 +648,6 @@ export default function TasksPage() {
         try {
             console.log('Current user:', userData?.me);
             console.log('Sending data:', data);
-
-            // Add parentTaskId if creating a sub-task
-            if (parentTaskForSubTask) {
-                data.parentTaskId = parentTaskForSubTask.id;
-            }
 
             if (editingTask) {
                 // For updates, exclude projectId as it's not allowed in UpdateTaskInput
@@ -883,7 +670,6 @@ export default function TasksPage() {
                 console.log('Create result:', result);
             }
             setShowModal(false);
-            setParentTaskForSubTask(null);
             console.log('Refetching tasks...');
             const refetchResult = await refetchTasks();
             console.log('Refetch result:', refetchResult);
@@ -1168,7 +954,6 @@ export default function TasksPage() {
                                 onEditTask={handleEditTask}
                                 onDeleteTask={handleDeleteTask}
                                 onStatusChange={handleStatusChange}
-                                onAddSubTask={handleAddSubTask}
                                 users={users}
                             />
                         ))}
@@ -1248,7 +1033,6 @@ export default function TasksPage() {
             {/* Task Modal */}
             <TaskModal
                 task={editingTask}
-                parentTask={parentTaskForSubTask}
                 isOpen={showModal}
                 onClose={() => setShowModal(false)}
                 onSave={handleSaveTask}
