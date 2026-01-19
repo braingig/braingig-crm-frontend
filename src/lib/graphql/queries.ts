@@ -116,41 +116,8 @@ export const GET_TASKS = gql`
       dueDate
       timeSpent
       estimatedTime
-      parentTaskId
       createdAt
       updatedAt
-      subTasks {
-        id
-        title
-        description
-        status
-        priority
-        projectId
-        assignedToId
-        startDate
-        dueDate
-        timeSpent
-        estimatedTime
-        parentTaskId
-        createdAt
-        updatedAt
-        subTasks {
-          id
-          title
-          description
-          status
-          priority
-          projectId
-          assignedToId
-          startDate
-          dueDate
-          timeSpent
-          estimatedTime
-          parentTaskId
-          createdAt
-          updatedAt
-        }
-      }
     }
   }
 `;
@@ -189,25 +156,8 @@ export const CREATE_TASK = gql`
       dueDate
       timeSpent
       estimatedTime
-      parentTaskId
       createdAt
       updatedAt
-      subTasks {
-        id
-        title
-        description
-        status
-        priority
-        projectId
-        assignedToId
-        startDate
-        dueDate
-        timeSpent
-        estimatedTime
-        parentTaskId
-        createdAt
-        updatedAt
-      }
     }
   }
 `;
@@ -226,25 +176,8 @@ export const UPDATE_TASK = gql`
       dueDate
       timeSpent
       estimatedTime
-      parentTaskId
       createdAt
       updatedAt
-      subTasks {
-        id
-        title
-        description
-        status
-        priority
-        projectId
-        assignedToId
-        startDate
-        dueDate
-        timeSpent
-        estimatedTime
-        parentTaskId
-        createdAt
-        updatedAt
-      }
     }
   }
 `;
@@ -252,27 +185,6 @@ export const UPDATE_TASK = gql`
 export const DELETE_TASK = gql`
   mutation DeleteTask($id: String!) {
     deleteTask(id: $id)
-  }
-`;
-
-export const CREATE_SUB_TASK = gql`
-  mutation CreateSubTask($input: CreateTaskInput!) {
-    createTask(input: $input) {
-      id
-      title
-      description
-      status
-      priority
-      projectId
-      assignedToId
-      startDate
-      dueDate
-      timeSpent
-      estimatedTime
-      parentTaskId
-      createdAt
-      updatedAt
-    }
   }
 `;
 
@@ -328,8 +240,8 @@ export const START_TIME_ENTRY = gql`
 `;
 
 export const STOP_TIME_ENTRY = gql`
-  mutation StopTimeEntry($duration: Float!) {
-    stopTimeEntry(duration: $duration) {
+  mutation StopTimeEntry {
+    stopTimeEntry {
       id
       startTime
       endTime
