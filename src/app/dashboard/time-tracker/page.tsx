@@ -1286,43 +1286,6 @@ export default function TimeTrackerPage() {
         return formatDuration(durationInSeconds);
     };
 
-    // Enhanced duration calculation that estimates actual working time by accounting for idle periods
-    const calculateWorkingDuration = (startTime: string, endTime?: string, backendDuration?: number) => {
-        // If backend provides duration, trust it (it should be the actual working time)
-        if (backendDuration !== undefined && backendDuration !== null && backendDuration > 0) {
-            return formatDuration(backendDuration * 60); // Backend duration is in minutes
-        }
-
-        const start = new Date(startTime);
-        const end = endTime ? new Date(endTime) : new Date();
-        const totalDurationInSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
-
-        // For short durations (less than 2 minutes), assume minimal idle time
-        if (totalDurationInSeconds < 120) {
-            return formatDuration(totalDurationInSeconds);
-        }
-
-        // For longer durations, apply a more realistic working time calculation
-        // Based on typical user behavior patterns and the 1-minute idle detection system
-        let workingTimeRatio = 0.85; // Default: assume 85% productivity for normal work sessions
-        
-        // Adjust ratio based on session length
-        if (totalDurationInSeconds > 14400) { // More than 4 hours
-            workingTimeRatio = 0.75; // Longer sessions tend to have more breaks
-        } else if (totalDurationInSeconds > 7200) { // More than 2 hours
-            workingTimeRatio = 0.80; // Moderate breaks
-        } else if (totalDurationInSeconds > 1800) { // More than 30 minutes
-            workingTimeRatio = 0.85; // Fewer breaks
-        } else { // 2-30 minutes
-            workingTimeRatio = 0.90; // High focus period
-        }
-
-        // Calculate estimated working time
-        const estimatedWorkingTime = Math.floor(totalDurationInSeconds * workingTimeRatio);
-
-        return formatDuration(estimatedWorkingTime);
-    };
-
     const getAttendanceStatus = () => {
         const activeSession = todaySessions.find((session: any) => session.checkIn && !session.checkOut);
 
@@ -1605,27 +1568,19 @@ export default function TimeTrackerPage() {
             return;
         }
 
-        // Calculate total idle time: 
-        // 1. 60 seconds for idle detection period (time before pause)
-        // 2. Time between pause and resume (pause-to-resume gap)
-        let totalIdleTime = 60; // Always 60 seconds for 1 minute of inactivity before pause
+        // Always subtract exactly 60 seconds when user was inactive (1 minute)
+        // This is the core requirement: if user inactive for 1 minute, subtract that time
+        let idleDuration = 60; // Always 60 seconds for 1 minute of inactivity
 
         console.log('🔍 DEBUG - pauseStartTimeRef:', pauseStartTimeRef.current, 'electronIdleTime:', electronIdleTime);
-        console.log('🟢 BASE IDLE TIME: Always subtracting', totalIdleTime, 'seconds (1 minute of inactivity before pause)');
-
-        // Add the pause-to-resume gap if we have a pause start time
-        if (pauseStartTimeRef.current) {
-            const pauseToResumeGap = Math.floor((Date.now() - pauseStartTimeRef.current) / 1000);
-            totalIdleTime += pauseToResumeGap;
-            console.log('🟢 PAUSE-TO-RESUME GAP: Adding', pauseToResumeGap, 'seconds for time between pause and resume');
-        }
+        console.log('🟢 FIXED IDLE DURATION: Always subtracting', idleDuration, 'seconds (1 minute of inactivity)');
 
         // Validate that we actually had an inactivity period (should have pauseStartTime or electronIdleTime)
         if (!pauseStartTimeRef.current && electronIdleTime === 0) {
             console.log('🔴 WARNING: No inactivity detected - this might be a manual resume');
-            totalIdleTime = 0; // Don't subtract time if no inactivity was detected
+            idleDuration = 0; // Don't subtract time if no inactivity was detected
         }
-        console.log('🟢 FINAL TOTAL IDLE TIME:', totalIdleTime, 'seconds (idle detection + pause-to-resume gap)');
+        console.log('🟢 Proceeding with resume - idleDuration:', idleDuration, 'seconds');
 
         isUpdatingStateRef.current = true;
 
@@ -1638,8 +1593,8 @@ export default function TimeTrackerPage() {
             timerIntervalRef.current = null;
         }
 
-        // totalIdleTime now includes both idle detection period and pause-to-resume gap
-        console.log('🟢 FIXED: User was inactive - subtracting exactly', totalIdleTime, 'seconds from working time (idle detection + pause-to-resume gap)');
+        // idleDuration is now fixed to 60 seconds for inactivity periods
+        console.log('🟢 FIXED: User was inactive - subtracting exactly', idleDuration, 'seconds from working time (1 minute of inactivity)');
 
         // Update refs immediately for consistency
         isTimerPausedRef.current = false;
@@ -1650,13 +1605,13 @@ export default function TimeTrackerPage() {
             // Get the actual working time when paused (includes idle time that needs to be subtracted)
             const pausedWorkingTime = actualElapsedRef.current;
 
-            // CRITICAL: Subtract the total idle time from the working time since user was inactive
-            // Example: Timer shows 5:25 when paused, user was idle for 1 minute + pause-to-resume gap = actual work time
-            const actualWorkTime = Math.max(0, pausedWorkingTime - totalIdleTime);
+            // CRITICAL: Subtract the idle time from the working time since user was inactive
+            // Example: Timer shows 5:25 when paused, user was idle for 1 minute = actual work time is 4:25
+            const actualWorkTime = Math.max(0, pausedWorkingTime - idleDuration);
             const newTotalWorkingTime = actualWorkTime;
             const newElapsed = actualWorkTime;
 
-            console.log('🟢 Resume with idle time subtraction - pausedWorkingTime:', pausedWorkingTime, 'totalIdleTime:', totalIdleTime, 'actualWorkTime:', actualWorkTime, 'state totalWorkingTime:', totalWorkingTime);
+            console.log('🟢 Resume with idle time subtraction - pausedWorkingTime:', pausedWorkingTime, 'idleDuration:', idleDuration, 'actualWorkTime:', actualWorkTime, 'state totalWorkingTime:', totalWorkingTime);
 
             // Update both state and ref to keep them in sync with the corrected working time
             setTotalWorkingTime(newTotalWorkingTime);
@@ -1688,7 +1643,7 @@ export default function TimeTrackerPage() {
                 setTimerRestartKey((prev: number) => prev + 1);
             }, 10);
 
-            console.log('🟢 BATCHED RESUME UPDATE COMPLETED - timer corrected to:', actualWorkTime, 'seconds (subtracted', totalIdleTime, 'idle seconds from', pausedWorkingTime, ')');
+            console.log('🟢 BATCHED RESUME UPDATE COMPLETED - timer corrected to:', actualWorkTime, 'seconds (subtracted', idleDuration, 'idle seconds from', pausedWorkingTime, ')');
         });
 
         // Small delay to ensure all state updates are processed before timer restarts
@@ -1724,21 +1679,6 @@ export default function TimeTrackerPage() {
                 // 🔴 PAUSE
                 if (isIdle && !isTimerPausedRef.current) {
                     console.log('⛔ IDLE → pause timer');
-                    
-                    // Report activity to backend
-                    reportActivity({
-                        variables: {
-                            employeeId: currentUserId,
-                            type: 'IDLE',
-                            metadata: {
-                                timestamp: new Date().toISOString(),
-                                idleTime: data.idleTime || 0
-                            }
-                        }
-                    }).catch(error => {
-                        console.error('Failed to report IDLE activity:', error);
-                    });
-                    
                     handleTimerPause();
                     return;
                 }
@@ -1746,21 +1686,6 @@ export default function TimeTrackerPage() {
                 // 🟢 RESUME
                 if (!isIdle && isTimerPausedRef.current) {
                     console.log('▶️ ACTIVE → resume timer');
-                    
-                    // Report activity to backend
-                    reportActivity({
-                        variables: {
-                            employeeId: currentUserId,
-                            type: 'ACTIVE',
-                            metadata: {
-                                timestamp: new Date().toISOString(),
-                                idleTime: data.idleTime || 0
-                            }
-                        }
-                    }).catch(error => {
-                        console.error('Failed to report ACTIVE activity:', error);
-                    });
-                    
                     handleTimerResume(data.idleTime);
                     return;
                 }
@@ -2348,11 +2273,7 @@ export default function TimeTrackerPage() {
                                                             if (currentActiveEntry) {
                                                                 console.log('⚠️ RACE CONDITION DETECTED - UI had timer but backend shows none. Trying to stop anyway...');
                                                                 try {
-                                                                    await stopTimer({
-                variables: {
-                    duration: Math.floor(actualElapsedRef.current / 60) // Convert seconds to minutes
-                }
-            });
+                                                                    await stopTimer();
                                                                     return;
                                                                 } catch (stopError) {
                                                                     console.log('⚠️ Stop attempt failed, timer was already stopped');
@@ -2372,11 +2293,7 @@ export default function TimeTrackerPage() {
 
                                                         // If there's still an active timer, proceed with stop
                                                         console.log('🛑 STOPPING TIMER - BACKEND CONFIRMS ACTIVE TIMER');
-                                                        stopTimer({
-                variables: {
-                    duration: Math.floor(actualElapsedRef.current / 60) // Convert seconds to minutes
-                }
-            });
+                                                        stopTimer();
                                                     } catch (error) {
                                                         console.error('❌ ERROR DURING PRE-STOP REFRESH:', error);
                                                         setIsStopping(false);
@@ -2768,12 +2685,18 @@ export default function TimeTrackerPage() {
                                                         <ClockIcon className="h-4 w-4 text-gray-400 mr-1" />
                                                         <span className="text-sm text-gray-900 dark:text-white">
                                                             {(() => {
-                                                                // Use enhanced duration calculation that accounts for idle periods
-                                                                return calculateWorkingDuration(
-                                                                    entry.startTime,
-                                                                    entry.endTime || undefined,
-                                                                    entry.duration
-                                                                );
+                                                                if (entry.endTime && entry.duration) {
+                                                                    // Heuristic: Combine backend minutes (handling idle deductions) with raw seconds precision
+                                                                    const rawSeconds = Math.floor((new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / 1000);
+                                                                    const secondsPart = rawSeconds % 60;
+                                                                    // Use floor of backend duration as minutes base, add original seconds offset
+                                                                    const totalSeconds = (Math.floor(entry.duration) * 60) + secondsPart;
+                                                                    return formatDuration(totalSeconds);
+                                                                }
+                                                                // Fallback for active entries or missing duration
+                                                                return entry.endTime
+                                                                    ? calculateDuration(entry.startTime, entry.endTime)
+                                                                    : calculateDuration(entry.startTime);
                                                             })()}
                                                         </span>
                                                     </div>
