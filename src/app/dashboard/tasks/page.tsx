@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useApolloClient } from '@apollo/client';
 import {
     PlusIcon,
@@ -11,9 +11,11 @@ import {
     XMarkIcon,
     PencilIcon,
     TrashIcon,
+    Squares2X2Icon,
 } from '@heroicons/react/24/outline';
 import {
     ChevronDownIcon,
+    ChevronUpIcon,
     UserCircleIcon,
 } from '@heroicons/react/24/solid';
 import {
@@ -57,12 +59,29 @@ const columnColors: { [key: string]: string } = {
     COMPLETED: 'bg-green-50 border-green-200',
 };
 
-const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, users }: {
+/** Flattens parent and nested subTasks into one array; adds _parentTitle for subtasks. */
+function flattenTasks(tasks: any[]): any[] {
+    const out: any[] = [];
+    function go(t: any, parentTitle?: string) {
+        out.push({ ...t, _parentTitle: parentTitle });
+        (t.subTasks || []).forEach((st: any) => go(st, t.title));
+    }
+    (tasks || []).forEach((t: any) => go(t));
+    return out;
+}
+
+const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtask, users, isSubtask = false, indentLevel = 0, hasSubtasks = false, expanded, onToggleExpand }: {
     task: any;
     onEdit: (task: any) => void;
     onDelete: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
+    onAddSubtask?: (parent: any) => void;
     users: any[];
+    isSubtask?: boolean;
+    indentLevel?: number;
+    hasSubtasks?: boolean;
+    expanded?: boolean;
+    onToggleExpand?: () => void;
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const {
@@ -89,60 +108,102 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, users }: {
         <div
             ref={setNodeRef}
             style={style}
-            className="relative bg-white rounded-lg shadow-sm border border-gray-200 p-4 mb-3 hover:shadow-md transition-shadow relative"
+            className={
+                isSubtask
+                    ? 'relative bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 mb-2 shadow-sm'
+                    : 'relative bg-white rounded-lg border border-gray-200 p-4 mb-3 shadow-sm hover:shadow-md transition-shadow'
+            }
         >
-            <div
-                className="cursor-grab active:cursor-grabbing"
-                {...attributes}
-                {...listeners}
-            >
-                <div className="flex items-start justify-between mb-2">
-                    <div className="flex items-center space-x-2 flex-1">
-                        <h3 className="text-sm font-medium text-gray-900 line-clamp-2 hover:bg-gray-50 px-1 py-0.5 rounded pr-3">
-                            {task.title}
-                        </h3>
-                    </div>
-                </div>
-
-                {task.description && (
-                    <p className="text-xs text-gray-600 mb-3 line-clamp-2">
-                        {task.description}
-                    </p>
-                )}
-
-                <div className="flex items-center justify-between mb-2">
-                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${priorityColors[task.priority]}`}>
-                        {task.priority}
-                    </span>
-                    <div className="flex items-center text-xs text-gray-500">
-                        <ClockIcon className="h-3 w-3 mr-1" />
-                        {task.estimatedTime ? `${task.estimatedTime}h` : 'No estimate'}
-                    </div>
-                </div>
-
-                <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center text-xs text-gray-500">
-                        <CalendarIcon className="h-3 w-3 mr-1" />
-                        {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
-                    </div>
-                    {task.assignedToId && (
-                        <div className="flex items-center">
-                            <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center">
-                                <UserCircleIcon className="h-4 w-4 text-gray-600" />
-                            </div>
-                            <span className="ml-1 text-xs text-gray-600">
-                                {users.find((u: any) => u.id === task.assignedToId)?.name || 'Unassigned'}
-                            </span>
-                        </div>
+            {/* Header with title, expand/collapse chevron, and drag handle */}
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                    {/* Parent with subtasks: show expand/collapse chevron just before title */}
+                    {hasSubtasks && !isSubtask && onToggleExpand && (
+                        <button
+                            type="button"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                onToggleExpand();
+                            }}
+                            onMouseDown={(e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                            }}
+                            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+                        >
+                            <ChevronDownIcon
+                                className={`h-4 w-4 transition-transform duration-150 ${
+                                    expanded ? 'rotate-0' : '-rotate-90'
+                                }`}
+                            />
+                        </button>
                     )}
-                </div>
 
-                {task.project && (
-                    <div className="mt-2 pt-2 border-t border-gray-100">
-                        <span className="text-xs text-gray-500">{task.project.name}</span>
+                    {/* Drag handle around title/content so chevron clicks don't start drag */}
+                    <div
+                        className="cursor-grab active:cursor-grabbing flex-1 min-w-0"
+                        {...attributes}
+                        {...listeners}
+                    >
+                        <div className="flex items-start">
+                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                                <h3
+                                    className={
+                                        isSubtask
+                                            ? 'text-xs font-semibold text-gray-900 line-clamp-2 px-1 py-0.5 rounded pr-3'
+                                            : 'text-sm font-medium text-gray-900 line-clamp-2 hover:bg-gray-50 px-1 py-0.5 rounded pr-3'
+                                    }
+                                >
+                                    {task.title}
+                                </h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Body content */}
+            {task.description && (
+                <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                    {task.description}
+                </p>
+            )}
+
+            <div className="flex items-center justify-between mb-2">
+                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${priorityColors[task.priority]}`}>
+                    {task.priority}
+                </span>
+                <div className="flex items-center text-xs text-gray-500">
+                    <ClockIcon className="h-3 w-3 mr-1" />
+                    {task.estimatedTime ? `${task.estimatedTime}h` : 'No estimate'}
+                </div>
+            </div>
+
+            <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center text-xs text-gray-500">
+                    <CalendarIcon className="h-3 w-3 mr-1" />
+                    {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
+                </div>
+                {task.assignedToId && (
+                    <div className="flex items-center">
+                        <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center">
+                            <UserCircleIcon className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <span className="ml-1 text-xs text-gray-600">
+                            {users.find((u: any) => u.id === task.assignedToId)?.name || 'Unassigned'}
+                        </span>
                     </div>
                 )}
             </div>
+
+            {task.project && (
+                <div className="mt-2 pt-2 border-t border-gray-100">
+                    <span className="text-xs text-gray-500">{task.project.name}</span>
+                </div>
+            )}
+
+            {/* Card menu */}
             <div className="absolute top-4 right-3">
                 <button
                     onClick={(e) => {
@@ -166,6 +227,19 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, users }: {
                 {showMenu && (
                     <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
                         <div className="py-1">
+                            {!task.parentTaskId && onAddSubtask && (
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        onAddSubtask(task);
+                                        setShowMenu(false);
+                                    }}
+                                    className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full"
+                                >
+                                    <Squares2X2Icon className="h-4 w-4 mr-2" />
+                                    Add Subtask
+                                </button>
+                            )}
                             <button
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -244,6 +318,69 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, users }: {
     );
 };
 
+// Parent Task with Subtasks Component
+const ParentTaskWithSubtasks = ({ 
+    task, 
+    expanded, 
+    onToggleExpand,
+    onEdit, 
+    onDelete, 
+    onStatusChange, 
+    onAddSubtask, 
+    users 
+}: {
+    task: any;
+    expanded: boolean;
+    onToggleExpand: () => void;
+    onEdit: (task: any) => void;
+    onDelete: (task: any) => void;
+    onStatusChange: (taskId: string, newStatus: string) => void;
+    onAddSubtask?: (parent: any) => void;
+    users: any[];
+}) => {
+    const hasSubtasks = task.subTasks && task.subTasks.length > 0;
+    const subtasks = task.subTasks || [];
+    
+    // Debug: Log subtask info
+    if (hasSubtasks) {
+        console.log(`Parent task "${task.title}" has ${subtasks.length} subtasks, expanded: ${expanded}`, subtasks);
+    }
+
+    return (
+        <div>
+            <DraggableTaskCard
+                task={task}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onStatusChange={onStatusChange}
+                onAddSubtask={onAddSubtask}
+                users={users}
+                isSubtask={false}
+                hasSubtasks={hasSubtasks}
+                expanded={expanded}
+                onToggleExpand={onToggleExpand}
+            />
+            {hasSubtasks && expanded && (
+                <div className="ml-2 mt-2 space-y-2">
+                    {subtasks.map((subtask: any) => (
+                        <DraggableTaskCard
+                            key={subtask.id}
+                            task={subtask}
+                            onEdit={onEdit}
+                            onDelete={onDelete}
+                            onStatusChange={onStatusChange}
+                            onAddSubtask={onAddSubtask}
+                            users={users}
+                            isSubtask={true}
+                            indentLevel={1}
+                        />
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // Droppable Kanban Column
 const DroppableKanbanColumn = ({
     title,
@@ -253,7 +390,10 @@ const DroppableKanbanColumn = ({
     onEditTask,
     onDeleteTask,
     onStatusChange,
-    users
+    onAddSubtask,
+    users,
+    expandedTasks,
+    onToggleExpand
 }: {
     title: string;
     tasks: any[];
@@ -262,7 +402,10 @@ const DroppableKanbanColumn = ({
     onEditTask: (task: any) => void;
     onDeleteTask: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
+    onAddSubtask?: (parent: any) => void;
     users: any[];
+    expandedTasks: Set<string>;
+    onToggleExpand: (taskId: string) => void;
 }) => {
     const { setNodeRef, isOver } = useDroppable({
         id: status,
@@ -281,12 +424,15 @@ const DroppableKanbanColumn = ({
                 className={`bg-gray-50 rounded-b-lg border border-t-0 border-gray-200 p-3 min-h-[400px] ${isOver ? 'bg-blue-50' : ''}`}
             >
                 {tasks.map((task) => (
-                    <DraggableTaskCard
+                    <ParentTaskWithSubtasks
                         key={task.id}
                         task={task}
+                        expanded={expandedTasks.has(task.id)}
+                        onToggleExpand={() => onToggleExpand(task.id)}
                         onEdit={onEditTask}
                         onDelete={onDeleteTask}
                         onStatusChange={onStatusChange}
+                        onAddSubtask={onAddSubtask}
                         users={users}
                     />
                 ))}
@@ -329,6 +475,7 @@ const TaskCard = ({ task }: { task: any }) => {
 
 const TaskModal = ({
     task,
+    parentTask,
     isOpen,
     onClose,
     onSave,
@@ -336,6 +483,7 @@ const TaskModal = ({
     users
 }: {
     task: any | null;
+    parentTask: { id: string; projectId: string; title: string } | null;
     isOpen: boolean;
     onClose: () => void;
     onSave: (data: any) => void;
@@ -363,6 +511,16 @@ const TaskModal = ({
                 dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
                 estimatedTime: task.estimatedTime?.toString() || '',
             });
+        } else if (parentTask) {
+            setFormData({
+                title: '',
+                description: '',
+                priority: 'MEDIUM',
+                projectId: parentTask.projectId,
+                assignedToId: '',
+                dueDate: '',
+                estimatedTime: '',
+            });
         } else {
             setFormData({
                 title: '',
@@ -374,7 +532,7 @@ const TaskModal = ({
                 estimatedTime: '',
             });
         }
-    }, [task, isOpen]);
+    }, [task, parentTask, isOpen]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -385,7 +543,9 @@ const TaskModal = ({
             return;
         }
 
-        if (!formData.projectId) {
+        // For subtasks, projectId comes from parent, so skip validation
+        // For regular tasks, projectId is required
+        if (!parentTask && !formData.projectId) {
             alert('Project is required');
             return;
         }
@@ -411,7 +571,6 @@ const TaskModal = ({
             }
         }
 
-        console.log('Final submit data:', submitData);
         onSave(submitData);
     };
 
@@ -422,7 +581,7 @@ const TaskModal = ({
             <div className="bg-white rounded-lg p-6 w-full max-w-md">
                 <div className="flex justify-between items-center mb-4">
                     <h2 className="text-lg font-semibold">
-                        {task ? 'Edit Task' : 'Create New Task'}
+                        {task ? 'Edit Task' : parentTask ? 'Add Subtask' : 'Create New Task'}
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
                         <XMarkIcon className="h-5 w-5" />
@@ -472,24 +631,31 @@ const TaskModal = ({
                             </select>
                         </div>
 
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Project *
-                            </label>
-                            <select
-                                required
-                                value={formData.projectId}
-                                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            >
-                                <option value="">Select Project</option>
-                                {projects.map((project: any) => (
-                                    <option key={project.id} value={project.id}>
-                                        {project.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
+                        {parentTask ? (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Parent</label>
+                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
+                                    {parentTask.title}
+                                </div>
+                            </div>
+                        ) : (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
+                                <select
+                                    required
+                                    value={formData.projectId}
+                                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
+                                >
+                                    <option value="">Select Project</option>
+                                    {projects.map((project: any) => (
+                                        <option key={project.id} value={project.id}>
+                                            {project.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -550,7 +716,7 @@ const TaskModal = ({
                             type="submit"
                             className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
                         >
-                            {task ? 'Update' : 'Create'} Task
+                            {task ? 'Update' : parentTask ? 'Add Subtask' : 'Create'} Task
                         </button>
                     </div>
                 </form>
@@ -565,6 +731,7 @@ export default function TasksPage() {
     const [showFilters, setShowFilters] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingTask, setEditingTask] = useState<any | null>(null);
+    const [parentTaskForModal, setParentTaskForModal] = useState<{ id: string; projectId: string; title: string } | null>(null);
     const [filters, setFilters] = useState({
         projectId: '',
         assignedToId: '',
@@ -609,8 +776,13 @@ export default function TasksPage() {
     const projects = projectsData?.projects || [];
     const users = usersData?.users || [];
 
-    // Debug: Log current tasks
+    // Debug: Log current tasks and their subtasks
     console.log('Current tasks loaded:', tasks);
+    tasks.forEach((t: any) => {
+        if (t.subTasks && t.subTasks.length > 0) {
+            console.log(`Task "${t.title}" (${t.id}) has ${t.subTasks.length} subtasks:`, t.subTasks.map((st: any) => `${st.title} (${st.id}, parentTaskId: ${st.parentTaskId})`));
+        }
+    });
     console.log('Tasks by status:', {
         TODO: tasks.filter((t: any) => t.status === 'TODO').length,
         IN_PROGRESS: tasks.filter((t: any) => t.status === 'IN_PROGRESS').length,
@@ -625,22 +797,69 @@ export default function TasksPage() {
         { key: 'COMPLETED', title: 'Completed' },
     ];
 
+    const allTasksFlattened = useMemo(() => flattenTasks(tasks), [tasks]);
+    
+    // Track expanded parent tasks - start with all expanded by default
+    const [expandedTasks, setExpandedTasks] = useState<Set<string>>(() => {
+        const expanded = new Set<string>();
+        tasks.forEach((t: any) => {
+            if (t.subTasks && t.subTasks.length > 0) {
+                expanded.add(t.id);
+            }
+        });
+        return expanded;
+    });
+
+    // Update expanded set when tasks change (new tasks with subtasks should be expanded)
+    useEffect(() => {
+        setExpandedTasks(prev => {
+            const next = new Set(prev);
+            tasks.forEach((t: any) => {
+                if (t.subTasks && t.subTasks.length > 0 && !next.has(t.id)) {
+                    next.add(t.id);
+                }
+            });
+            return next;
+        });
+    }, [tasks]);
+
+    const toggleExpand = (taskId: string) => {
+        setExpandedTasks(prev => {
+            const next = new Set(prev);
+            if (next.has(taskId)) {
+                next.delete(taskId);
+            } else {
+                next.add(taskId);
+            }
+            return next;
+        });
+    };
+
+    // Get parent tasks by status (for display - subtasks shown nested under parent)
     const getTasksByStatus = (status: string) => {
-        return tasks.filter((task: any) => task.status === status);
+        return tasks.filter((t: any) => t.status === status);
     };
 
     const handleCreateTask = () => {
-        // Check if projects are available
         if (projects.length === 0) {
             alert('No projects available. Please create a project first.');
             return;
         }
+        setParentTaskForModal(null);
         setEditingTask(null);
         setShowModal(true);
     };
 
     const handleEditTask = (task: any) => {
+        setParentTaskForModal(null);
         setEditingTask(task);
+        setShowModal(true);
+    };
+
+    const handleAddSubtask = (parent: any) => {
+        if (projects.length === 0) return;
+        setParentTaskForModal({ id: parent.id, projectId: parent.projectId, title: parent.title });
+        setEditingTask(null);
         setShowModal(true);
     };
 
@@ -648,6 +867,7 @@ export default function TasksPage() {
         try {
             console.log('Current user:', userData?.me);
             console.log('Sending data:', data);
+            console.log('Parent task for modal:', parentTaskForModal);
 
             if (editingTask) {
                 // For updates, exclude projectId as it's not allowed in UpdateTaskInput
@@ -662,18 +882,39 @@ export default function TasksPage() {
                 });
                 console.log('Update result:', result);
             } else {
+                // If creating a subtask, add parentTaskId and ensure projectId is set
+                const createData = { ...data };
+                if (parentTaskForModal) {
+                    createData.parentTaskId = parentTaskForModal.id;
+                    // Ensure projectId is set from parent if not already set
+                    if (!createData.projectId && parentTaskForModal.projectId) {
+                        createData.projectId = parentTaskForModal.projectId;
+                    }
+                    console.log('Creating subtask with parentTaskId:', createData.parentTaskId);
+                }
+                console.log('Create data:', createData);
+
                 const result = await createTask({
                     variables: {
-                        input: data,
+                        input: createData,
                     },
                 });
                 console.log('Create result:', result);
             }
             setShowModal(false);
-            console.log('Refetching tasks...');
+            setParentTaskForModal(null);
             const refetchResult = await refetchTasks();
             console.log('Refetch result:', refetchResult);
             console.log('All tasks after refetch:', refetchResult?.data?.tasks);
+            
+            // Debug: Log parent tasks and their subtasks
+            if (refetchResult?.data?.tasks) {
+                refetchResult.data.tasks.forEach((t: any) => {
+                    if (t.subTasks && t.subTasks.length > 0) {
+                        console.log(`Parent task "${t.title}" has ${t.subTasks.length} subtasks:`, t.subTasks.map((st: any) => st.title));
+                    }
+                });
+            }
         } catch (error: any) {
             console.error('Error saving task:', error);
             console.error('GraphQL errors:', error.graphQLErrors);
@@ -752,7 +993,7 @@ export default function TasksPage() {
 
     const handleDragStart = (event: DragStartEvent) => {
         const { active } = event;
-        const task = tasks.find((t: any) => t.id === active.id);
+        const task = allTasksFlattened.find((t: any) => t.id === active.id);
         setActiveTask(task);
     };
 
@@ -764,7 +1005,7 @@ export default function TasksPage() {
             return;
         }
 
-        const activeTask = tasks.find((t: any) => t.id === active.id);
+        const activeTask = allTasksFlattened.find((t: any) => t.id === active.id);
 
         if (!activeTask) {
             setActiveTask(null);
@@ -944,19 +1185,27 @@ export default function TasksPage() {
                     onDragEnd={handleDragEnd}
                 >
                     <div className="flex space-x-4 overflow-x-auto pb-4">
-                        {columns.map((column) => (
-                            <DroppableKanbanColumn
-                                key={column.key}
-                                title={column.title}
-                                tasks={getTasksByStatus(column.key)}
-                                status={column.key}
-                                count={getTasksByStatus(column.key).length}
-                                onEditTask={handleEditTask}
-                                onDeleteTask={handleDeleteTask}
-                                onStatusChange={handleStatusChange}
-                                users={users}
-                            />
-                        ))}
+                        {columns.map((column) => {
+                            const parentTasks = getTasksByStatus(column.key);
+                            // Count includes subtasks for the badge
+                            const totalCount = allTasksFlattened.filter((t: any) => t.status === column.key).length;
+                            return (
+                                <DroppableKanbanColumn
+                                    key={column.key}
+                                    title={column.title}
+                                    tasks={parentTasks}
+                                    status={column.key}
+                                    count={totalCount}
+                                    onEditTask={handleEditTask}
+                                    onDeleteTask={handleDeleteTask}
+                                    onStatusChange={handleStatusChange}
+                                    onAddSubtask={handleAddSubtask}
+                                    users={users}
+                                    expandedTasks={expandedTasks}
+                                    onToggleExpand={toggleExpand}
+                                />
+                            );
+                        })}
                     </div>
                     <DragOverlay dropAnimation={null}>
                         {activeTask ? (
@@ -979,7 +1228,7 @@ export default function TasksPage() {
                         </div>
                         <div className="ml-3">
                             <p className="text-sm font-medium text-gray-900">Total Tasks</p>
-                            <p className="text-xs text-gray-500">{tasks.length} active tasks</p>
+                            <p className="text-xs text-gray-500">{allTasksFlattened.length} active tasks</p>
                         </div>
                     </div>
                 </div>
@@ -993,7 +1242,7 @@ export default function TasksPage() {
                         <div className="ml-3">
                             <p className="text-sm font-medium text-gray-900">Urgent</p>
                             <p className="text-xs text-gray-500">
-                                {tasks.filter((t: any) => t.priority === 'URGENT').length} urgent tasks
+                                {allTasksFlattened.filter((t: any) => t.priority === 'URGENT').length} urgent tasks
                             </p>
                         </div>
                     </div>
@@ -1033,8 +1282,9 @@ export default function TasksPage() {
             {/* Task Modal */}
             <TaskModal
                 task={editingTask}
+                parentTask={parentTaskForModal}
                 isOpen={showModal}
-                onClose={() => setShowModal(false)}
+                onClose={() => { setShowModal(false); setParentTaskForModal(null); }}
                 onSave={handleSaveTask}
                 projects={projects}
                 users={users}

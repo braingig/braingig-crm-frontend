@@ -31,7 +31,12 @@ export default function DashboardPage() {
         },
         {
             name: 'Open Tasks',
-            value: tasksData?.tasks?.filter((t: any) => t.status !== 'COMPLETED').length || '0',
+            value: (() => {
+                const ts = tasksData?.tasks || [];
+                const countOpen = (arr: any[]): number =>
+                    arr.reduce((s, t) => s + (t.status !== 'COMPLETED' ? 1 : 0) + countOpen(t.subTasks || []), 0);
+                return countOpen(ts);
+            })(),
             icon: ClockIcon,
             change: '-1.39%',
             changeType: 'negative',

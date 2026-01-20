@@ -116,8 +116,60 @@ export const GET_TASKS = gql`
       dueDate
       timeSpent
       estimatedTime
+      parentTaskId
       createdAt
       updatedAt
+      project {
+        id
+        name
+      }
+      subTasks {
+        id
+        title
+        description
+        status
+        priority
+        projectId
+        assignedToId
+        dueDate
+        estimatedTime
+        timeSpent
+        parentTaskId
+        createdAt
+        updatedAt
+        project {
+          id
+          name
+        }
+        subTasks {
+          id
+          title
+          status
+          priority
+          projectId
+          assignedToId
+          parentTaskId
+        }
+      }
+    }
+  }
+`;
+
+export const GET_TASKS_FOR_SELECTION = gql`
+  query GetTasksForSelection($filters: TaskFiltersInput) {
+    tasksForSelection(filters: $filters) {
+      id
+      title
+      projectId
+      parentTaskId
+      parentTask {
+        id
+        title
+      }
+      project {
+        id
+        name
+      }
     }
   }
 `;
@@ -156,8 +208,21 @@ export const CREATE_TASK = gql`
       dueDate
       timeSpent
       estimatedTime
+      parentTaskId
       createdAt
       updatedAt
+      project {
+        id
+        name
+      }
+      subTasks {
+        id
+        title
+        status
+        priority
+        projectId
+        parentTaskId
+      }
     }
   }
 `;

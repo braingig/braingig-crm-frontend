@@ -1,7 +1,7 @@
 'use client';
 
 import { useQuery, useMutation, useApolloClient } from '@apollo/client';
-import { GET_ACTIVE_TIME_ENTRY, GET_TODAY_TIMESHEET, GET_TODAY_SESSIONS, GET_TIME_ENTRIES, GET_TIMESHEETS, CHECK_IN, CHECK_OUT, START_TIME_ENTRY, STOP_TIME_ENTRY, GET_PROJECTS, GET_TASKS, GET_ME, GET_EMPLOYEE_WORK_TYPE, UPDATE_EMPLOYEE_WORK_TYPE, REPORT_ACTIVITY } from '@/lib/graphql/queries';
+import { GET_ACTIVE_TIME_ENTRY, GET_TODAY_TIMESHEET, GET_TODAY_SESSIONS, GET_TIME_ENTRIES, GET_TIMESHEETS, CHECK_IN, CHECK_OUT, START_TIME_ENTRY, STOP_TIME_ENTRY, GET_PROJECTS, GET_TASKS_FOR_SELECTION, GET_ME, GET_EMPLOYEE_WORK_TYPE, UPDATE_EMPLOYEE_WORK_TYPE, REPORT_ACTIVITY } from '@/lib/graphql/queries';
 import { WorkType } from '@/types';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { unstable_batchedUpdates } from 'react-dom';
@@ -184,8 +184,8 @@ export default function TimeTrackerPage() {
         notifyOnNetworkStatusChange: true
     });
 
-    // Get tasks assigned to current user
-    const { data: myTasksData, error: myTasksError } = useQuery(GET_TASKS, {
+    // Get tasks assigned to current user (flat: parents + subtasks)
+    const { data: myTasksData, error: myTasksError } = useQuery(GET_TASKS_FOR_SELECTION, {
         variables: { filters: { assignedToId: currentUserId } },
         skip: !currentUserId,
         fetchPolicy: 'network-only',
@@ -198,15 +198,15 @@ export default function TimeTrackerPage() {
         notifyOnNetworkStatusChange: true
     });
 
-    // Filter tasks by selected project (only from user's assigned tasks)
-    const { data: tasksData, error: tasksError } = useQuery(GET_TASKS, {
+    // Filter tasks by selected project (flat: parents + subtasks; only when project selected)
+    const { data: tasksData, error: tasksError } = useQuery(GET_TASKS_FOR_SELECTION, {
         variables: {
             filters: {
                 assignedToId: currentUserId,
-                projectId: selectedProject
+                ...(selectedProject && { projectId: selectedProject })
             }
         },
-        skip: !currentUserId,
+        skip: !currentUserId || !selectedProject,
         fetchPolicy: 'network-only',
         notifyOnNetworkStatusChange: true
     });
@@ -216,7 +216,7 @@ export default function TimeTrackerPage() {
     const todaySessions = todaySessionsData?.todaySessions || [];
     const employeeWorkType = workTypeData?.employeeWorkType || WorkType.REMOTE;
     const allProjects = projectsData?.projects || [];
-    const myTasks = myTasksData?.tasks || [];
+    const myTasks = myTasksData?.tasksForSelection || [];
     // Initialize persistent cache on component mount
     useEffect(() => {
         if (!cacheInitializedRef.current) {
@@ -266,7 +266,7 @@ export default function TimeTrackerPage() {
         persistentCacheRef.current = cachedActiveEntry;
     }, [cachedActiveEntry]);
 
-    const tasks = tasksData?.tasks || [];
+    const tasks = tasksData?.tasksForSelection || [];
 
     // Filter projects to only show those that have tasks assigned to current user
     const myProjectIds = [...new Set(myTasks.map((task: any) => task.projectId))];
@@ -274,7 +274,8 @@ export default function TimeTrackerPage() {
 
     // Create lookup maps for project and task names
     const projectMap = new Map(allProjects.map((project: any) => [project.id, project.name]));
-    const taskMap = new Map(tasks.map((task: any) => [task.id, task.title]));
+    // Include subtasks: show "Parent › Subtask" for subtasks
+    const taskMap = new Map(myTasks.map((t: any) => [t.id, t.parentTask ? `${t.parentTask.title} › ${t.title}` : t.title]));
 
     // Check if user has any assigned tasks
     const hasAssignedTasks = myTasks.length > 0;
@@ -435,38 +436,40 @@ export default function TimeTrackerPage() {
     });
     const [stopTimer] = useMutation(STOP_TIME_ENTRY, {
         onCompleted: (data) => {
-            console.log('✅ TIMER STOP SUCCESS - Response data:', data);
-            console.log('⛔ Timer stopped automatically! (This should only appear when user manually stops timer)');
-            console.log('🗑️ Clearing cached entry due to manual timer stop');
-
-            // Show system notification for timer stop
             try {
-                browserElectronService.showNotification(
-                    'Timer Stopped',
-                    `Your timer has been stopped at ${formatTime(totalWorkingTime)}`
-                ).catch(error => {
-                    console.error('Failed to show stop notification:', error);
-                });
-            } catch (error) {
-                console.error('Failed to show stop notification:', error);
-            }
+                console.log('✅ TIMER STOP SUCCESS - Response data:', data);
+                console.log('🗑️ Clearing cached entry due to manual timer stop');
 
-            setCachedActiveEntry(null); // Clear cached entry
-            refetchActiveEntry();
-            refetchTimeEntries();
-            refetchTodaySessions(); // Also refresh today sessions
-            setIsStopping(false); // Reset stopping flag after successful stop
+                try {
+                    browserElectronService.showNotification(
+                        'Timer Stopped',
+                        `Your timer has been stopped at ${formatTime(totalWorkingTime)}`
+                    ).catch((err: unknown) => console.error('Failed to show stop notification:', err));
+                } catch (e) {
+                    console.error('Failed to show stop notification:', e);
+                }
+
+                setCachedActiveEntry(null);
+                refetchActiveEntry();
+                refetchTimeEntries();
+                refetchTodaySessions();
+            } finally {
+                setIsStopping(false);
+            }
         },
         update: (cache) => {
-            console.log('🔄 UPDATING CACHE AFTER STOP');
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'activeTimeEntry' });
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'timeEntries' });
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'todayTimesheet' });
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'todaySessions' });
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'timesheets' });
-            // Also clear any week/month specific data
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'weekTimesheets' });
-            cache.evict({ id: 'ROOT_QUERY', fieldName: 'monthTimesheets' });
+            try {
+                console.log('🔄 UPDATING CACHE AFTER STOP');
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'activeTimeEntry' });
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'timeEntries' });
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'todayTimesheet' });
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'todaySessions' });
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'timesheets' });
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'weekTimesheets' });
+                cache.evict({ id: 'ROOT_QUERY', fieldName: 'monthTimesheets' });
+            } catch (e) {
+                console.warn('Cache evict during stop:', e);
+            }
         },
         onError: (error) => {
             console.error('❌ TIMER STOP ERROR:', error);
@@ -496,6 +499,8 @@ export default function TimeTrackerPage() {
             } else if (error.message.includes('Network error') || error.networkError) {
                 console.log('❌ DETECTED Network error');
                 alert('Network error: Failed to stop timer. Please check your connection.');
+                // Refetch in case stop actually succeeded but response was lost
+                refetchActiveEntry();
             } else {
                 console.log('❌ OTHER ERROR TYPE');
                 alert(`Failed to stop timer: ${error.message}`);
@@ -1737,10 +1742,7 @@ export default function TimeTrackerPage() {
         return project?.name || 'Unknown Project';
     };
 
-    const getTaskName = (taskId: string) => {
-        const task = tasks.find((t: any) => t.id === taskId);
-        return task?.title || 'Unknown Task';
-    };
+    const getTaskName = (taskId: string) => taskMap.get(taskId) || 'Unknown Task';
 
     const handleWorkTypeChange = (workType: WorkType) => {
         console.log('Updating work type to:', workType);
@@ -2277,7 +2279,9 @@ export default function TimeTrackerPage() {
                                                                     return;
                                                                 } catch (stopError) {
                                                                     console.log('⚠️ Stop attempt failed, timer was already stopped');
+                                                                    setIsStopping(false);
                                                                 }
+                                                                return;
                                                             }
 
                                                             // If we reach here, the timer was genuinely already stopped
@@ -2293,11 +2297,14 @@ export default function TimeTrackerPage() {
 
                                                         // If there's still an active timer, proceed with stop
                                                         console.log('🛑 STOPPING TIMER - BACKEND CONFIRMS ACTIVE TIMER');
-                                                        stopTimer();
-                                                    } catch (error) {
-                                                        console.error('❌ ERROR DURING PRE-STOP REFRESH:', error);
+                                                        await stopTimer();
+                                                    } catch (error: any) {
+                                                        console.error('❌ ERROR DURING STOP:', error);
                                                         setIsStopping(false);
-                                                        alert('Failed to verify timer status. Please try again.');
+                                                        // onError already alerts for Network error; avoid duplicate
+                                                        if (!error?.networkError && !error?.message?.includes?.('Network error')) {
+                                                            alert('Failed to stop timer. Please try again.');
+                                                        }
                                                     }
                                                 }}
                                                 disabled={isStopping}
@@ -2382,7 +2389,7 @@ export default function TimeTrackerPage() {
                                                                     <option value="">Choose a task...</option>
                                                                     {tasks.map((task: any) => (
                                                                         <option key={task.id} value={task.id}>
-                                                                            {task.title}
+                                                                            {task.parentTask ? `${task.parentTask.title} › ${task.title}` : task.title}
                                                                         </option>
                                                                     ))}
                                                                 </select>
