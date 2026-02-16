@@ -148,7 +148,7 @@ export default function TaskDetailsPage() {
     const hasParent = task.parentTask != null;
 
     return (
-        <div className="max-w-4xl mx-auto">
+        <div className="">
             {/* Hierarchy-aware navigation */}
             <div className="mb-6 flex flex-col gap-2">
                 {hasParent ? (

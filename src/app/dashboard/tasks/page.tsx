@@ -71,7 +71,7 @@ function flattenTasks(tasks: any[]): any[] {
     return out;
 }
 
-const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtask, onNavigateToDetails, users, isSubtask = false, indentLevel = 0, hasSubtasks = false, expanded, onToggleExpand }: {
+const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtask, onNavigateToDetails, users, isSubtask = false, indentLevel = 0, hasSubtasks = false, expanded, onToggleExpand, parentTitle }: {
     task: any;
     onEdit: (task: any) => void;
     onDelete: (task: any) => void;
@@ -84,6 +84,7 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
     hasSubtasks?: boolean;
     expanded?: boolean;
     onToggleExpand?: () => void;
+    parentTitle?: string;
 }) => {
     const [showMenu, setShowMenu] = useState(false);
     const {
@@ -112,7 +113,7 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
             style={style}
             className={
                 isSubtask
-                    ? 'relative bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 mb-2 shadow-sm cursor-grab active:cursor-grabbing'
+                    ? 'relative bg-primary-50/60 dark:bg-primary-950/40 rounded-lg border border-primary-200 dark:border-primary-500/40 border-l-4 border-l-primary-500 px-3 py-2 mb-2 shadow-sm cursor-grab active:cursor-grabbing'
                     : 'relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing'
             }
             {...attributes}
@@ -134,7 +135,7 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                             className="text-gray-400 hover:text-gray-600 flex-shrink-0"
                         >
                             <ChevronDownIcon
-                                className={`h-4 w-4 transition-transform duration-150 ${
+                                className={`h-4 w-4 transition-transform duration-200 ease-out ${
                                     expanded ? 'rotate-0' : '-rotate-90'
                                 }`}
                             />
@@ -160,24 +161,37 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                             }
                         }}
                     >
-                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
                             <h3
                                 className={
                                     isSubtask
-                                        ? 'text-xs font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-3 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
-                                        : 'text-sm font-medium text-gray-900 dark:text-white line-clamp-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 px-1 py-0.5 rounded pr-3 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
+                                        ? 'text-xs font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-1 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
+                                        : 'text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-1 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
                                 }
                             >
                                 {task.title}
                             </h3>
+                            {isSubtask && (
+                                <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-gray-800/60 text-xs text-primary-700 dark:text-primary-300 px-2 py-0.5 border border-primary-200/80 dark:border-primary-700/40">
+                                    Subtask
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
 
             {/* Body content */}
+            {isSubtask && parentTitle && (
+                <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
+                    Subtask of{' '}
+                    <span className="font-medium text-gray-700 dark:text-gray-200">
+                        {parentTitle}
+                    </span>
+                </p>
+            )}
             {task.description && (
-                <p className="text-xs text-gray-600 mb-3 line-clamp-2">
+                <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
                     {task.description}
                 </p>
             )}
@@ -381,22 +395,30 @@ const ParentTaskWithSubtasks = ({
                 expanded={expanded}
                 onToggleExpand={onToggleExpand}
             />
-            {hasSubtasks && expanded && (
-                <div className="ml-2 mt-2 space-y-2">
-                    {subtasks.map((subtask: any) => (
-                        <DraggableTaskCard
-                            key={subtask.id}
-                            task={subtask}
-                            onEdit={onEdit}
-                            onDelete={onDelete}
-                            onStatusChange={onStatusChange}
-                            onAddSubtask={onAddSubtask}
-                            onNavigateToDetails={onNavigateToDetails}
-                            users={users}
-                            isSubtask={true}
-                            indentLevel={1}
-                        />
-                    ))}
+            {hasSubtasks && (
+                <div
+                    className="grid transition-[grid-template-rows] duration-200 ease-in-out"
+                    style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
+                >
+                    <div className="min-h-0 overflow-hidden">
+                        <div className="ml-2 mt-2 space-y-2">
+                            {subtasks.map((subtask: any) => (
+                                <DraggableTaskCard
+                                    key={subtask.id}
+                                    task={subtask}
+                                    onEdit={onEdit}
+                                    onDelete={onDelete}
+                                    onStatusChange={onStatusChange}
+                                    onAddSubtask={onAddSubtask}
+                                    onNavigateToDetails={onNavigateToDetails}
+                                    users={users}
+                                    isSubtask={true}
+                                    indentLevel={1}
+                                    parentTitle={task.title}
+                                />
+                            ))}
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
