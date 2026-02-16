@@ -194,6 +194,65 @@ export const GET_TASK = gql`
   }
 `;
 
+export const GET_TASK_DETAILS = gql`
+  query GetTaskDetails($id: String!) {
+    task(id: $id) {
+      id
+      title
+      description
+      status
+      priority
+      projectId
+      assignedToId
+      startDate
+      dueDate
+      timeSpent
+      estimatedTime
+      parentTaskId
+      createdAt
+      updatedAt
+      project {
+        id
+        name
+      }
+      parentTask {
+        id
+        title
+      }
+      assignedTo {
+        id
+        name
+        email
+      }
+      subTasks {
+        id
+        title
+        description
+        status
+        priority
+        dueDate
+        timeSpent
+        estimatedTime
+        assignedTo {
+          id
+          name
+          email
+        }
+      }
+      comments {
+        id
+        content
+        createdAt
+        user {
+          id
+          name
+          email
+        }
+      }
+    }
+  }
+`;
+
 export const CREATE_TASK = gql`
   mutation CreateTask($input: CreateTaskInput!) {
     createTask(input: $input) {

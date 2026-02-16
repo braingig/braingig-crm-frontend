@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useApolloClient } from '@apollo/client';
 import {
     PlusIcon,
@@ -70,12 +71,13 @@ function flattenTasks(tasks: any[]): any[] {
     return out;
 }
 
-const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtask, users, isSubtask = false, indentLevel = 0, hasSubtasks = false, expanded, onToggleExpand }: {
+const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtask, onNavigateToDetails, users, isSubtask = false, indentLevel = 0, hasSubtasks = false, expanded, onToggleExpand }: {
     task: any;
     onEdit: (task: any) => void;
     onDelete: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
     onAddSubtask?: (parent: any) => void;
+    onNavigateToDetails?: (taskId: string) => void;
     users: any[];
     isSubtask?: boolean;
     indentLevel?: number;
@@ -110,14 +112,16 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
             style={style}
             className={
                 isSubtask
-                    ? 'relative bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 mb-2 shadow-sm'
-                    : 'relative bg-white rounded-lg border border-gray-200 p-4 mb-3 shadow-sm hover:shadow-md transition-shadow'
+                    ? 'relative bg-gray-50 rounded-lg border border-gray-200 px-3 py-2 mb-2 shadow-sm cursor-grab active:cursor-grabbing'
+                    : 'relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing'
             }
+            {...attributes}
+            {...listeners}
         >
-            {/* Header with title, expand/collapse chevron, and drag handle */}
+            {/* Header with chevron, grip hint, and title (title + edit menu exclude from drag) */}
             <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    {/* Parent with subtasks: show expand/collapse chevron just before title */}
+                    {/* Expand/collapse chevron - exclude from drag */}
                     {hasSubtasks && !isSubtask && onToggleExpand && (
                         <button
                             type="button"
@@ -126,10 +130,7 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                                 e.preventDefault();
                                 onToggleExpand();
                             }}
-                            onMouseDown={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                            }}
+                            onPointerDown={(e) => e.stopPropagation()}
                             className="text-gray-400 hover:text-gray-600 flex-shrink-0"
                         >
                             <ChevronDownIcon
@@ -140,24 +141,35 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                         </button>
                     )}
 
-                    {/* Drag handle around title/content so chevron clicks don't start drag */}
+                    {/* Title: click goes to details (programmatic nav so drag doesn't block it) */}
                     <div
-                        className="cursor-grab active:cursor-grabbing flex-1 min-w-0"
-                        {...attributes}
-                        {...listeners}
+                        className="flex items-start flex-1 min-w-0 cursor-pointer"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
+                            onNavigateToDetails?.(task.id);
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                onNavigateToDetails?.(task.id);
+                            }
+                        }}
                     >
-                        <div className="flex items-start">
-                            <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                                <h3
-                                    className={
-                                        isSubtask
-                                            ? 'text-xs font-semibold text-gray-900 line-clamp-2 px-1 py-0.5 rounded pr-3'
-                                            : 'text-sm font-medium text-gray-900 line-clamp-2 hover:bg-gray-50 px-1 py-0.5 rounded pr-3'
-                                    }
-                                >
-                                    {task.title}
-                                </h3>
-                            </div>
+                        <div className="flex items-center gap-1.5 flex-1 min-w-0">
+                            <h3
+                                className={
+                                    isSubtask
+                                        ? 'text-xs font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-3 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
+                                        : 'text-sm font-medium text-gray-900 dark:text-white line-clamp-2 hover:bg-gray-50 dark:hover:bg-gray-700/50 px-1 py-0.5 rounded pr-3 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
+                                }
+                            >
+                                {task.title}
+                            </h3>
                         </div>
                     </div>
                 </div>
@@ -203,29 +215,28 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                 </div>
             )}
 
-            {/* Card menu */}
-            <div className="absolute top-4 right-3">
+            {/* Card menu - EXCLUDED from drag so menu works */}
+            <div
+                className="absolute top-4 right-3"
+                onPointerDown={(e) => e.stopPropagation()}
+            >
                 <button
+                    type="button"
                     onClick={(e) => {
                         e.stopPropagation();
                         e.preventDefault();
                         setShowMenu(!showMenu);
                     }}
-                    onMouseDown={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                    }}
-                    onMouseUp={(e) => {
-                        e.stopPropagation();
-                        e.preventDefault();
-                    }}
-                    className="text-gray-400 hover:text-gray-600 pointer-events-auto"
-                    style={{ pointerEvents: 'auto' }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    className="text-gray-400 hover:text-gray-600"
                 >
                     <EllipsisHorizontalIcon className="h-4 w-4" />
                 </button>
                 {showMenu && (
-                    <div className="absolute right-0 mt-1 w-48 bg-white rounded-md shadow-lg z-50 border border-gray-200">
+                    <div
+                        className="absolute right-0 mt-1 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-50 border border-gray-200 dark:border-gray-700"
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
                         <div className="py-1">
                             {!task.parentTaskId && onAddSubtask && (
                                 <button
@@ -267,48 +278,55 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                 )}
             </div>
 
-            {/* Status Change Buttons */}
-            <div className="mt-3 pt-2 border-t border-gray-100 flex gap-1">
+            {/* Status Change Buttons - exclude from starting drag so click works */}
+            <div
+                className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex gap-1"
+                onPointerDown={(e) => e.stopPropagation()}
+            >
                 {task.status !== 'TODO' && (
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             handleStatusChange('TODO');
                         }}
-                        className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                        className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
                     >
                         To Do
                     </button>
                 )}
                 {task.status !== 'IN_PROGRESS' && (
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             handleStatusChange('IN_PROGRESS');
                         }}
-                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/30"
                     >
                         In Progress
                     </button>
                 )}
                 {task.status !== 'REVIEW' && (
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             handleStatusChange('REVIEW');
                         }}
-                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200"
+                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/30"
                     >
                         Review
                     </button>
                 )}
                 {task.status !== 'COMPLETED' && (
                     <button
+                        type="button"
                         onClick={(e) => {
                             e.stopPropagation();
                             handleStatusChange('COMPLETED');
                         }}
-                        className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200"
+                        className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
                     >
                         Complete
                     </button>
@@ -327,6 +345,7 @@ const ParentTaskWithSubtasks = ({
     onDelete, 
     onStatusChange, 
     onAddSubtask, 
+    onNavigateToDetails,
     users 
 }: {
     task: any;
@@ -336,6 +355,7 @@ const ParentTaskWithSubtasks = ({
     onDelete: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
     onAddSubtask?: (parent: any) => void;
+    onNavigateToDetails?: (taskId: string) => void;
     users: any[];
 }) => {
     const hasSubtasks = task.subTasks && task.subTasks.length > 0;
@@ -354,6 +374,7 @@ const ParentTaskWithSubtasks = ({
                 onDelete={onDelete}
                 onStatusChange={onStatusChange}
                 onAddSubtask={onAddSubtask}
+                onNavigateToDetails={onNavigateToDetails}
                 users={users}
                 isSubtask={false}
                 hasSubtasks={hasSubtasks}
@@ -370,6 +391,7 @@ const ParentTaskWithSubtasks = ({
                             onDelete={onDelete}
                             onStatusChange={onStatusChange}
                             onAddSubtask={onAddSubtask}
+                            onNavigateToDetails={onNavigateToDetails}
                             users={users}
                             isSubtask={true}
                             indentLevel={1}
@@ -391,6 +413,7 @@ const DroppableKanbanColumn = ({
     onDeleteTask,
     onStatusChange,
     onAddSubtask,
+    onNavigateToDetails,
     users,
     expandedTasks,
     onToggleExpand
@@ -403,6 +426,7 @@ const DroppableKanbanColumn = ({
     onDeleteTask: (task: any) => void;
     onStatusChange: (taskId: string, newStatus: string) => void;
     onAddSubtask?: (parent: any) => void;
+    onNavigateToDetails?: (taskId: string) => void;
     users: any[];
     expandedTasks: Set<string>;
     onToggleExpand: (taskId: string) => void;
@@ -433,6 +457,7 @@ const DroppableKanbanColumn = ({
                         onDelete={onDeleteTask}
                         onStatusChange={onStatusChange}
                         onAddSubtask={onAddSubtask}
+                        onNavigateToDetails={onNavigateToDetails}
                         users={users}
                     />
                 ))}
@@ -728,6 +753,8 @@ const TaskModal = ({
 
 
 export default function TasksPage() {
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const [showFilters, setShowFilters] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [editingTask, setEditingTask] = useState<any | null>(null);
@@ -798,6 +825,19 @@ export default function TasksPage() {
     ];
 
     const allTasksFlattened = useMemo(() => flattenTasks(tasks), [tasks]);
+
+    // Open edit modal when navigating from task details with ?edit=id
+    useEffect(() => {
+        const editId = searchParams.get('edit');
+        if (!editId || tasks.length === 0) return;
+        const taskToEdit = allTasksFlattened.find((t: any) => t.id === editId);
+        if (taskToEdit) {
+            setParentTaskForModal(null);
+            setEditingTask(taskToEdit);
+            setShowModal(true);
+            router.replace('/dashboard/tasks', { scroll: false });
+        }
+    }, [searchParams, tasks.length, allTasksFlattened, router]);
     
     // Track expanded parent tasks - start with all expanded by default
     const [expandedTasks, setExpandedTasks] = useState<Set<string>>(() => {
@@ -1200,6 +1240,7 @@ export default function TasksPage() {
                                     onDeleteTask={handleDeleteTask}
                                     onStatusChange={handleStatusChange}
                                     onAddSubtask={handleAddSubtask}
+                                    onNavigateToDetails={(id) => router.push(`/dashboard/tasks/${id}`)}
                                     users={users}
                                     expandedTasks={expandedTasks}
                                     onToggleExpand={toggleExpand}
