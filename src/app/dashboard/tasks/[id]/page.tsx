@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useQuery, useMutation } from '@apollo/client';
 import {
     GET_TASK_DETAILS,
+    GET_TIME_ENTRIES,
     UPDATE_TASK,
     DELETE_TASK,
     ADD_COMMENT,
@@ -54,6 +55,11 @@ export default function TaskDetailsPage() {
         skip: !taskId,
     });
 
+    const { data: timeEntriesData } = useQuery(GET_TIME_ENTRIES, {
+        variables: { taskId },
+        skip: !taskId,
+    });
+
     const [updateTask] = useMutation(UPDATE_TASK, {
         onCompleted: () => refetch(),
     });
@@ -94,6 +100,17 @@ export default function TaskDetailsPage() {
         const m = minutes % 60;
         return h > 0 ? `${h}h ${m}m` : `${m}m`;
     };
+
+    const timeEntries = timeEntriesData?.timeEntries ?? [];
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayEnd = new Date(todayStart);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+    const todayMinutes = timeEntries.reduce((sum: number, entry: any) => {
+        const start = entry.startTime ? new Date(entry.startTime) : null;
+        if (!start || start < todayStart || start >= todayEnd) return sum;
+        return sum + (entry.duration ?? 0);
+    }, 0);
 
     if (!taskId) {
         return (
@@ -410,14 +427,17 @@ export default function TaskDetailsPage() {
                                     <dt className="text-xs text-gray-500 dark:text-gray-400">
                                         Time
                                     </dt>
-                                    <dd className="text-sm font-medium text-gray-900 dark:text-white">
-                                        Spent: {formatMinutes(task.timeSpent ?? 0)}
-                                        {task.estimatedTime != null && (
-                                            <span className="text-gray-500 dark:text-gray-400 font-normal">
-                                                {' '}
-                                                · Est: {formatMinutes(task.estimatedTime)}
-                                            </span>
-                                        )}
+                                    <dd className="text-sm font-medium text-gray-900 dark:text-white space-y-0.5">
+                                        <div>Today: {formatMinutes(todayMinutes)}</div>
+                                        <div>
+                                            Total: {formatMinutes(task.timeSpent ?? 0)}
+                                            {task.estimatedTime != null && (
+                                                <span className="text-gray-500 dark:text-gray-400 font-normal">
+                                                    {' '}
+                                                    · Est: {formatMinutes(task.estimatedTime)}
+                                                </span>
+                                            )}
+                                        </div>
                                     </dd>
                                 </div>
                             </div>
