@@ -364,8 +364,8 @@ export const START_TIME_ENTRY = gql`
 `;
 
 export const STOP_TIME_ENTRY = gql`
-  mutation StopTimeEntry {
-    stopTimeEntry {
+  mutation StopTimeEntry($effectiveDurationSeconds: Int) {
+    stopTimeEntry(effectiveDurationSeconds: $effectiveDurationSeconds) {
       id
       startTime
       endTime

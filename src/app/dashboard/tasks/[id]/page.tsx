@@ -119,7 +119,8 @@ export default function TaskDetailsPage() {
         entries.reduce((sum: number, entry: any) => {
             const start = entry.startTime ? new Date(entry.startTime) : null;
             if (!start || start < todayStart || start >= todayEnd) return sum;
-            return sum + (entry.duration ?? 0);
+            const d = entry.duration ?? 0;
+            return sum + (d >= 60 ? Math.floor(d / 60) : d);
         }, 0);
 
     const useSubtaskTimeSum = !!task?.subTasks?.length;

@@ -1273,7 +1273,7 @@ export default function TimeTrackerPage() {
     const formatDuration = (seconds: number) => {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
-        const secs = seconds % 60;
+        const secs = Math.floor(seconds % 60);
 
         if (hours > 0) {
             return `${hours}h ${minutes}m ${secs}s`;
@@ -1284,9 +1284,17 @@ export default function TimeTrackerPage() {
         }
     };
 
-    const calculateDuration = (startTime: string, endTime?: string) => {
-        const start = new Date(startTime);
-        const end = endTime ? new Date(endTime) : new Date();
+    // Duration: new entries stored in seconds; old entries may be in minutes.
+    // Always display with seconds (e.g. "2m 16s").
+    const calculateEntryDuration = (entry: any) => {
+        if (entry.duration != null && entry.endTime) {
+            // duration >= 60 → seconds; duration < 60 → minutes (legacy)
+            const seconds = entry.duration >= 60 ? entry.duration : entry.duration * 60;
+            return formatDuration(seconds);
+        }
+
+        const start = new Date(entry.startTime);
+        const end = entry.endTime ? new Date(entry.endTime) : new Date();
         const durationInSeconds = Math.floor((end.getTime() - start.getTime()) / 1000);
         return formatDuration(durationInSeconds);
     };
@@ -1323,8 +1331,8 @@ export default function TimeTrackerPage() {
         }) || [];
 
         todayTimeEntries.forEach((entry: any) => {
-            if (entry.duration) {
-                totalSeconds += entry.duration * 60;
+            if (entry.duration != null) {
+                totalSeconds += entry.duration >= 60 ? entry.duration : entry.duration * 60;
             }
         });
 
@@ -1356,8 +1364,8 @@ export default function TimeTrackerPage() {
         }) || [];
 
         weekTimeEntries.forEach((entry: any) => {
-            if (entry.duration) {
-                totalSeconds += entry.duration * 60;
+            if (entry.duration != null) {
+                totalSeconds += entry.duration >= 60 ? entry.duration : entry.duration * 60;
             }
         });
 
@@ -1394,8 +1402,8 @@ export default function TimeTrackerPage() {
         }) || [];
 
         monthTimeEntries.forEach((entry: any) => {
-            if (entry.duration) {
-                totalSeconds += entry.duration * 60;
+            if (entry.duration != null) {
+                totalSeconds += entry.duration >= 60 ? entry.duration : entry.duration * 60;
             }
         });
 
@@ -2275,7 +2283,14 @@ export default function TimeTrackerPage() {
                                                             if (currentActiveEntry) {
                                                                 console.log('⚠️ RACE CONDITION DETECTED - UI had timer but backend shows none. Trying to stop anyway...');
                                                                 try {
-                                                                    await stopTimer();
+                                                                    await stopTimer({
+                                                                        variables: {
+                                                                            effectiveDurationSeconds: Math.max(
+                                                                                0,
+                                                                                Math.floor(actualElapsedRef.current)
+                                                                            ),
+                                                                        },
+                                                                    });
                                                                     return;
                                                                 } catch (stopError) {
                                                                     console.log('⚠️ Stop attempt failed, timer was already stopped');
@@ -2297,7 +2312,14 @@ export default function TimeTrackerPage() {
 
                                                         // If there's still an active timer, proceed with stop
                                                         console.log('🛑 STOPPING TIMER - BACKEND CONFIRMS ACTIVE TIMER');
-                                                        await stopTimer();
+                                                        await stopTimer({
+                                                            variables: {
+                                                                effectiveDurationSeconds: Math.max(
+                                                                    0,
+                                                                    Math.floor(actualElapsedRef.current)
+                                                                ),
+                                                            },
+                                                        });
                                                     } catch (error: any) {
                                                         console.error('❌ ERROR DURING STOP:', error);
                                                         setIsStopping(false);
@@ -2691,20 +2713,7 @@ export default function TimeTrackerPage() {
                                                     <div className="flex items-center">
                                                         <ClockIcon className="h-4 w-4 text-gray-400 mr-1" />
                                                         <span className="text-sm text-gray-900 dark:text-white">
-                                                            {(() => {
-                                                                if (entry.endTime && entry.duration) {
-                                                                    // Heuristic: Combine backend minutes (handling idle deductions) with raw seconds precision
-                                                                    const rawSeconds = Math.floor((new Date(entry.endTime).getTime() - new Date(entry.startTime).getTime()) / 1000);
-                                                                    const secondsPart = rawSeconds % 60;
-                                                                    // Use floor of backend duration as minutes base, add original seconds offset
-                                                                    const totalSeconds = (Math.floor(entry.duration) * 60) + secondsPart;
-                                                                    return formatDuration(totalSeconds);
-                                                                }
-                                                                // Fallback for active entries or missing duration
-                                                                return entry.endTime
-                                                                    ? calculateDuration(entry.startTime, entry.endTime)
-                                                                    : calculateDuration(entry.startTime);
-                                                            })()}
+                                                            {calculateEntryDuration(entry)}
                                                         </span>
                                                     </div>
                                                 </td>
