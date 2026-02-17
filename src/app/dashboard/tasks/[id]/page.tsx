@@ -24,7 +24,7 @@ import {
     Squares2X2Icon,
     PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
-import { format } from 'date-fns';
+import { format, differenceInDays, startOfDay } from 'date-fns';
 import { useState } from 'react';
 
 const priorityColors: Record<string, string> = {
@@ -60,6 +60,15 @@ export default function TaskDetailsPage() {
         skip: !taskId,
     });
 
+    const task = data?.task;
+    const hasSubtasks = !!(task?.subTasks?.length);
+    const subtaskIds = hasSubtasks ? task!.subTasks!.map((st: any) => st.id) : [];
+
+    const { data: subtaskTimeEntriesData } = useQuery(GET_TIME_ENTRIES, {
+        variables: { taskIds: subtaskIds },
+        skip: !hasSubtasks || subtaskIds.length === 0,
+    });
+
     const [updateTask] = useMutation(UPDATE_TASK, {
         onCompleted: () => refetch(),
     });
@@ -72,8 +81,6 @@ export default function TaskDetailsPage() {
             refetch();
         },
     });
-
-    const task = data?.task;
 
     const handleStatusChange = (newStatus: string) => {
         setStatusDropdownOpen(false);
@@ -102,15 +109,26 @@ export default function TaskDetailsPage() {
     };
 
     const timeEntries = timeEntriesData?.timeEntries ?? [];
+    const subtaskTimeEntries = subtaskTimeEntriesData?.timeEntries ?? [];
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
     todayEnd.setDate(todayEnd.getDate() + 1);
-    const todayMinutes = timeEntries.reduce((sum: number, entry: any) => {
-        const start = entry.startTime ? new Date(entry.startTime) : null;
-        if (!start || start < todayStart || start >= todayEnd) return sum;
-        return sum + (entry.duration ?? 0);
-    }, 0);
+
+    const sumTodayMinutes = (entries: any[]) =>
+        entries.reduce((sum: number, entry: any) => {
+            const start = entry.startTime ? new Date(entry.startTime) : null;
+            if (!start || start < todayStart || start >= todayEnd) return sum;
+            return sum + (entry.duration ?? 0);
+        }, 0);
+
+    const useSubtaskTimeSum = !!task?.subTasks?.length;
+    const effectiveTotalMinutes = useSubtaskTimeSum
+        ? (task?.subTasks ?? []).reduce((s: number, st: any) => s + (st.timeSpent ?? 0), 0)
+        : (task?.timeSpent ?? 0);
+    const todayMinutes = useSubtaskTimeSum
+        ? sumTodayMinutes(subtaskTimeEntries)
+        : sumTodayMinutes(timeEntries);
 
     if (!taskId) {
         return (
@@ -146,6 +164,16 @@ export default function TaskDetailsPage() {
     }
 
     const hasParent = task.parentTask != null;
+
+    const dueDate = task.dueDate ? new Date(task.dueDate) : null;
+    const todayStartOfDay = startOfDay(new Date());
+    const isOverdue =
+        dueDate &&
+        startOfDay(dueDate) < todayStartOfDay &&
+        task.status !== 'COMPLETED';
+    const daysOverdue = isOverdue
+        ? differenceInDays(todayStartOfDay, startOfDay(dueDate!))
+        : 0;
 
     return (
         <div className="">
@@ -411,13 +439,23 @@ export default function TaskDetailsPage() {
                             {task.dueDate && (
                                 <div className="flex items-center gap-2">
                                     <CalendarIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                                    <div>
+                                    <div className="min-w-0 flex-1">
                                         <dt className="text-xs text-gray-500 dark:text-gray-400">
                                             Due date
                                         </dt>
                                         <dd className="text-sm font-medium text-gray-900 dark:text-white">
                                             {format(new Date(task.dueDate), 'MMM d, yyyy')}
+                                            {isOverdue && (
+                                                <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                                                    Overdue
+                                                </span>
+                                            )}
                                         </dd>
+                                        {isOverdue && daysOverdue > 0 && (
+                                            <dd className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                                                {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'} overdue
+                                            </dd>
+                                        )}
                                     </div>
                                 </div>
                             )}
@@ -430,7 +468,7 @@ export default function TaskDetailsPage() {
                                     <dd className="text-sm font-medium text-gray-900 dark:text-white space-y-0.5">
                                         <div>Today: {formatMinutes(todayMinutes)}</div>
                                         <div>
-                                            Total: {formatMinutes(task.timeSpent ?? 0)}
+                                            Total: {formatMinutes(effectiveTotalMinutes)}
                                             {task.estimatedTime != null && (
                                                 <span className="text-gray-500 dark:text-gray-400 font-normal">
                                                     {' '}

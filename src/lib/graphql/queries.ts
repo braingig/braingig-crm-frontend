@@ -461,8 +461,8 @@ export const GET_EMPLOYEE_WORK_TYPE = gql`
 `;
 
 export const GET_TIME_ENTRIES = gql`
-  query GetTimeEntries($employeeId: String, $taskId: String) {
-    timeEntries(employeeId: $employeeId, taskId: $taskId) {
+  query GetTimeEntries($employeeId: String, $taskId: String, $taskIds: [String!]) {
+    timeEntries(employeeId: $employeeId, taskId: $taskId, taskIds: $taskIds) {
       id
       startTime
       endTime
