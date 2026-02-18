@@ -6,6 +6,8 @@ import { useQuery, useMutation } from '@apollo/client';
 import {
     GET_TASK_DETAILS,
     GET_TIME_ENTRIES,
+    GET_PROJECTS,
+    GET_USERS,
     UPDATE_TASK,
     DELETE_TASK,
     ADD_COMMENT,
@@ -24,8 +26,9 @@ import {
     Squares2X2Icon,
     PaperAirplaneIcon,
 } from '@heroicons/react/24/outline';
-import { format, differenceInDays, startOfDay } from 'date-fns';
+import { format, differenceInDays, startOfDay, startOfWeek, endOfWeek, startOfMonth, endOfMonth } from 'date-fns';
 import { useState } from 'react';
+import TaskModal from '@/components/TaskModal';
 
 const priorityColors: Record<string, string> = {
     URGENT: 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400',
@@ -49,6 +52,9 @@ export default function TaskDetailsPage() {
     const [newComment, setNewComment] = useState('');
     const [statusDropdownOpen, setStatusDropdownOpen] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState(false);
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [timeEntriesFilter, setTimeEntriesFilter] = useState<'all' | 'today' | 'week' | 'month'>('all');
+    const [selectedMonth, setSelectedMonth] = useState(() => format(new Date(), 'yyyy-MM'));
 
     const { data, loading, error, refetch } = useQuery(GET_TASK_DETAILS, {
         variables: { id: taskId },
@@ -68,6 +74,11 @@ export default function TaskDetailsPage() {
         variables: { taskIds: subtaskIds },
         skip: !hasSubtasks || subtaskIds.length === 0,
     });
+
+    const { data: projectsData } = useQuery(GET_PROJECTS);
+    const { data: usersData } = useQuery(GET_USERS);
+    const projects = projectsData?.projects ?? [];
+    const users = usersData?.users ?? [];
 
     const [updateTask] = useMutation(UPDATE_TASK, {
         onCompleted: () => refetch(),
@@ -102,14 +113,70 @@ export default function TaskDetailsPage() {
         setDeleteConfirm(false);
     };
 
+    const handleEditSave = async (submitData: any) => {
+        try {
+            // Exclude projectId from update (backend may not allow changing it)
+            const { projectId, ...updateData } = submitData;
+            await updateTask({
+                variables: { id: taskId, input: updateData },
+            });
+            setShowEditModal(false);
+        } catch (err: any) {
+            alert(err?.message || 'Failed to update task');
+        }
+    };
+
     const formatMinutes = (minutes: number) => {
         const h = Math.floor(minutes / 60);
         const m = minutes % 60;
         return h > 0 ? `${h}h ${m}m` : `${m}m`;
     };
 
+    const formatDuration = (seconds: number) => {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = Math.floor(seconds % 60);
+        if (h > 0) return `${h}h ${m}m ${s}s`;
+        if (m > 0) return `${m}m ${s}s`;
+        return `${s}s`;
+    };
+
+    const getEntryDuration = (entry: any) => {
+        if (entry.duration != null && entry.endTime) return formatDuration(entry.duration);
+        const start = new Date(entry.startTime);
+        const end = entry.endTime ? new Date(entry.endTime) : new Date();
+        return formatDuration(Math.floor((end.getTime() - start.getTime()) / 1000));
+    };
+
     const timeEntries = timeEntriesData?.timeEntries ?? [];
     const subtaskTimeEntries = subtaskTimeEntriesData?.timeEntries ?? [];
+    const allTimeEntries = [...timeEntries, ...subtaskTimeEntries].sort(
+        (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+    );
+
+    const filteredTimeEntries = allTimeEntries.filter((entry: any) => {
+        const start = entry.startTime ? new Date(entry.startTime) : null;
+        if (!start) return false;
+        if (timeEntriesFilter === 'today') {
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            const todayEnd = new Date(todayStart);
+            todayEnd.setDate(todayEnd.getDate() + 1);
+            return start >= todayStart && start < todayEnd;
+        }
+        if (timeEntriesFilter === 'week') {
+            const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
+            const weekEnd = endOfWeek(new Date(), { weekStartsOn: 1 });
+            return start >= weekStart && start <= weekEnd;
+        }
+        if (timeEntriesFilter === 'month') {
+            const [y, m] = selectedMonth.split('-').map(Number);
+            const monthStart = startOfMonth(new Date(y, m - 1, 1));
+            const monthEnd = endOfMonth(new Date(y, m - 1, 1));
+            return start >= monthStart && start <= monthEnd;
+        }
+        return true;
+    });
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(todayStart);
@@ -273,13 +340,14 @@ export default function TaskDetailsPage() {
                                 </>
                             )}
                         </div>
-                        <Link
-                            href={`/dashboard/tasks?edit=${task.id}`}
+                        <button
+                            type="button"
+                            onClick={() => setShowEditModal(true)}
                             className="p-2 rounded-lg text-gray-500 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-900/20 transition-colors"
                             title="Edit task"
                         >
                             <PencilIcon className="h-5 w-5" />
-                        </Link>
+                        </button>
                         <button
                             type="button"
                             onClick={() => setDeleteConfirm(true)}
@@ -351,6 +419,106 @@ export default function TaskDetailsPage() {
                             </ul>
                         </div>
                     )}
+
+                    {/* Time Entries */}
+                    <div className="card">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-3">
+                            <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+                                <ClockIcon className="h-5 w-5 text-primary-600" />
+                                Time Entries ({filteredTimeEntries.length}{timeEntriesFilter !== 'all' ? ` of ${allTimeEntries.length}` : ''})
+                            </h2>
+                            {allTimeEntries.length > 0 && (
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="flex rounded-lg overflow-hidden border border-gray-200 dark:border-gray-600">
+                                        {(['all', 'today', 'week', 'month'] as const).map((f) => (
+                                            <button
+                                                key={f}
+                                                type="button"
+                                                onClick={() => setTimeEntriesFilter(f)}
+                                                className={`px-3 py-1.5 text-sm font-medium transition-colors ${
+                                                    timeEntriesFilter === f
+                                                        ? 'bg-primary-600 text-white'
+                                                        : 'bg-gray-50 dark:bg-gray-700/50 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                                                }`}
+                                            >
+                                                {f.charAt(0).toUpperCase() + f.slice(1)}
+                                            </button>
+                                        ))}
+                                    </div>
+                                    {timeEntriesFilter === 'month' && (
+                                        <input
+                                            type="month"
+                                            value={selectedMonth}
+                                            onChange={(e) => setSelectedMonth(e.target.value)}
+                                            className="px-3 py-1.5 text-sm border border-gray-200 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-primary-500"
+                                        />
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                        {allTimeEntries.length > 0 ? (
+                            filteredTimeEntries.length > 0 ? (
+                            <div className="overflow-x-auto -mx-4 sm:mx-0 overflow-y-auto max-h-[320px] border border-gray-200 dark:border-gray-600 rounded-lg">
+                                <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-600">
+                                    <thead className="sticky top-0 bg-gray-50 dark:bg-gray-800/95 z-10">
+                                        <tr>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Date</th>
+                                            {hasSubtasks && (
+                                                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Task</th>
+                                            )}
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Start</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">End</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Duration</th>
+                                            <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-200 dark:divide-gray-600 bg-white dark:bg-gray-800">
+                                        {filteredTimeEntries.map((entry: any) => (
+                                            <tr key={entry.id}>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                                    {entry.startTime ? format(new Date(entry.startTime), 'MMM d, yyyy') : '-'}
+                                                </td>
+                                                {hasSubtasks && (
+                                                    <td className="px-4 py-2 text-sm text-gray-600 dark:text-gray-300">
+                                                        {entry.taskId === taskId
+                                                            ? task.title
+                                                            : task.subTasks?.find((st: any) => st.id === entry.taskId)?.title ?? '-'}
+                                                    </td>
+                                                )}
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                                    {entry.startTime ? format(new Date(entry.startTime), 'h:mm a') : '-'}
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                                    {entry.endTime ? format(new Date(entry.endTime), 'h:mm a') : '-'}
+                                                </td>
+                                                <td className="px-4 py-2 text-sm text-gray-900 dark:text-white">
+                                                    {getEntryDuration(entry)}
+                                                </td>
+                                                <td className="px-4 py-2">
+                                                    <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${
+                                                        entry.endTime
+                                                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                                            : 'bg-amber-100 text-amber-800 dark:bg-amber-900/20 dark:text-amber-400'
+                                                    }`}>
+                                                        {entry.endTime ? 'Completed' : 'Active'}
+                                                    </span>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                            ) : (
+                                <p className="text-sm text-gray-500 dark:text-gray-400 py-4">
+                                    No time entries for this period. Try a different filter.
+                                </p>
+                            )
+                        ) : (
+                            <p className="text-sm text-gray-500 dark:text-gray-400 py-4">
+                                No time entries yet. Log time from the Time Tracker.
+                            </p>
+                        )}
+                    </div>
 
                     {/* Comments */}
                     <div className="card">
@@ -547,6 +715,17 @@ export default function TaskDetailsPage() {
                     </div>
                 </div>
             )}
+
+            {/* Edit modal - stays on detail page */}
+            <TaskModal
+                task={task}
+                parentTask={task?.parentTask ? { id: task.parentTask.id, projectId: task.parentTask.projectId ?? task.projectId ?? (task.project?.id ?? ''), title: task.parentTask.title } : null}
+                isOpen={showEditModal}
+                onClose={() => setShowEditModal(false)}
+                onSave={handleEditSave}
+                projects={projects}
+                users={users}
+            />
         </div>
     );
 }

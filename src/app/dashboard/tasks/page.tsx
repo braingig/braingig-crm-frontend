@@ -9,7 +9,6 @@ import {
     EllipsisHorizontalIcon,
     CalendarIcon,
     ClockIcon,
-    XMarkIcon,
     PencilIcon,
     TrashIcon,
     Squares2X2Icon,
@@ -250,7 +249,14 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                         </span>
                         <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                             <ClockIcon className="h-3 w-3 mr-1" />
-                            {task.estimatedTime ? `${task.estimatedTime}h` : 'No estimate'}
+                            {task.estimatedTime != null
+                                ? (() => {
+                                    const m = task.estimatedTime;
+                                    const h = Math.floor(m / 60);
+                                    const min = m % 60;
+                                    return h > 0 ? `${h}h ${min}m` : `${min}m`;
+                                })()
+                                : 'No estimate'}
                         </div>
                     </div>
                     <div className="flex items-center justify-between mb-2">
@@ -482,259 +488,7 @@ const TaskCard = ({ task }: { task: any }) => {
     );
 };
 
-const TaskModal = ({
-    task,
-    parentTask,
-    isOpen,
-    onClose,
-    onSave,
-    projects,
-    users
-}: {
-    task: any | null;
-    parentTask: { id: string; projectId: string; title: string } | null;
-    isOpen: boolean;
-    onClose: () => void;
-    onSave: (data: any) => void;
-    projects: any[];
-    users: any[];
-}) => {
-    const [formData, setFormData] = useState({
-        title: '',
-        description: '',
-        priority: 'MEDIUM',
-        projectId: '',
-        assignedToId: '',
-        dueDate: '',
-        estimatedTime: '',
-    });
-
-    useEffect(() => {
-        if (task) {
-            setFormData({
-                title: task.title || '',
-                description: task.description || '',
-                priority: task.priority || 'MEDIUM',
-                projectId: task.projectId || '',
-                assignedToId: task.assignedToId || '',
-                dueDate: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
-                estimatedTime: task.estimatedTime?.toString() || '',
-            });
-        } else if (parentTask) {
-            setFormData({
-                title: '',
-                description: '',
-                priority: 'MEDIUM',
-                projectId: parentTask.projectId,
-                assignedToId: '',
-                dueDate: '',
-                estimatedTime: '',
-            });
-        } else {
-            setFormData({
-                title: '',
-                description: '',
-                priority: 'MEDIUM',
-                projectId: '',
-                assignedToId: '',
-                dueDate: '',
-                estimatedTime: '',
-            });
-        }
-    }, [task, parentTask, isOpen]);
-
-    const handleSubmit = (e: React.FormEvent) => {
-        e.preventDefault();
-
-        // Validate required fields
-        if (!formData.title.trim()) {
-            alert('Title is required');
-            return;
-        }
-
-        // For subtasks, projectId comes from parent, so skip validation
-        // For regular tasks, projectId is required
-        if (!parentTask && !formData.projectId) {
-            alert('Project is required');
-            return;
-        }
-
-        // Prepare data with proper date handling
-        const submitData: any = {
-            title: formData.title.trim(),
-            description: formData.description.trim() || undefined,
-            priority: formData.priority,
-            projectId: formData.projectId,
-            estimatedTime: formData.estimatedTime ? parseInt(formData.estimatedTime) : undefined,
-        };
-
-        // Only include optional fields if they have values
-        if (formData.assignedToId) {
-            submitData.assignedToId = formData.assignedToId;
-        }
-
-        if (formData.dueDate) {
-            const dueDate = new Date(formData.dueDate);
-            if (!isNaN(dueDate.getTime())) {
-                submitData.dueDate = dueDate;
-            }
-        }
-
-        onSave(submitData);
-    };
-
-    if (!isOpen) return null;
-
-    return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-lg font-semibold">
-                        {task ? 'Edit Task' : parentTask ? 'Add Subtask' : 'Create New Task'}
-                    </h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-                        <XMarkIcon className="h-5 w-5" />
-                    </button>
-                </div>
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Title *
-                        </label>
-                        <input
-                            type="text"
-                            required
-                            value={formData.title}
-                            onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Description
-                        </label>
-                        <textarea
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            rows={3}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Priority
-                            </label>
-                            <select
-                                value={formData.priority}
-                                onChange={(e) => setFormData({ ...formData, priority: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            >
-                                <option value="LOW">Low</option>
-                                <option value="MEDIUM">Medium</option>
-                                <option value="HIGH">High</option>
-                                <option value="URGENT">Urgent</option>
-                            </select>
-                        </div>
-
-                        {parentTask ? (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Parent</label>
-                                <div className="px-3 py-2 bg-gray-50 border border-gray-200 rounded-md text-sm text-gray-700">
-                                    {parentTask.title}
-                                </div>
-                            </div>
-                        ) : (
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Project *</label>
-                                <select
-                                    required
-                                    value={formData.projectId}
-                                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                                >
-                                    <option value="">Select Project</option>
-                                    {projects.map((project: any) => (
-                                        <option key={project.id} value={project.id}>
-                                            {project.name}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Assignee
-                            </label>
-                            <select
-                                value={formData.assignedToId}
-                                onChange={(e) => setFormData({ ...formData, assignedToId: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            >
-                                <option value="">Unassigned</option>
-                                {users.map((user: any) => (
-                                    <option key={user.id} value={user.id}>
-                                        {user.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">
-                                Due Date
-                            </label>
-                            <input
-                                type="date"
-                                value={formData.dueDate}
-                                onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">
-                            Estimated Time (hours)
-                        </label>
-                        <input
-                            type="number"
-                            min="0"
-                            step="0.5"
-                            value={formData.estimatedTime}
-                            onChange={(e) => setFormData({ ...formData, estimatedTime: e.target.value })}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
-                        />
-                    </div>
-
-                    <div className="flex justify-end space-x-3 pt-4">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            className="px-4 py-2 text-sm font-medium text-white bg-primary-600 rounded-md hover:bg-primary-700"
-                        >
-                            {task ? 'Update' : parentTask ? 'Add Subtask' : 'Create'} Task
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    );
-};
-
-
+import TaskModal from '@/components/TaskModal';
 
 export default function TasksPage() {
     const router = useRouter();
