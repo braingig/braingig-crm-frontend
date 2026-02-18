@@ -1284,13 +1284,10 @@ export default function TimeTrackerPage() {
         }
     };
 
-    // Duration: new entries stored in seconds; old entries may be in minutes.
-    // Always display with seconds (e.g. "2m 16s").
+    // Duration is always stored in seconds (backend stores duration in seconds).
     const calculateEntryDuration = (entry: any) => {
         if (entry.duration != null && entry.endTime) {
-            // duration >= 60 → seconds; duration < 60 → minutes (legacy)
-            const seconds = entry.duration >= 60 ? entry.duration : entry.duration * 60;
-            return formatDuration(seconds);
+            return formatDuration(entry.duration);
         }
 
         const start = new Date(entry.startTime);
@@ -1332,7 +1329,7 @@ export default function TimeTrackerPage() {
 
         todayTimeEntries.forEach((entry: any) => {
             if (entry.duration != null) {
-                totalSeconds += entry.duration >= 60 ? entry.duration : entry.duration * 60;
+                totalSeconds += entry.duration;
             }
         });
 
@@ -1365,7 +1362,7 @@ export default function TimeTrackerPage() {
 
         weekTimeEntries.forEach((entry: any) => {
             if (entry.duration != null) {
-                totalSeconds += entry.duration >= 60 ? entry.duration : entry.duration * 60;
+                totalSeconds += entry.duration;
             }
         });
 
@@ -1403,7 +1400,7 @@ export default function TimeTrackerPage() {
 
         monthTimeEntries.forEach((entry: any) => {
             if (entry.duration != null) {
-                totalSeconds += entry.duration >= 60 ? entry.duration : entry.duration * 60;
+                totalSeconds += entry.duration;
             }
         });
 
@@ -2435,40 +2432,6 @@ export default function TimeTrackerPage() {
                                         </div>
                                     )}
 
-                                    {/* Debug Controls */}
-                                    <div className="mt-4 flex gap-2">
-                                        <button
-                                            onClick={() => {
-                                                console.log('🧪 Manual IDLE test triggered');
-                                                const mockIdleData = {
-                                                    type: 'IDLE',
-                                                    idleTime: 60,
-                                                    timestamp: Date.now()
-                                                };
-                                                // Manually trigger the idle logic
-                                                if (persistentCacheRef.current || cachedActiveEntry || activeEntry) {
-                                                    handleTimerPause();
-                                                    setTimerStatus('idle');
-                                                    setShowIdleNotification(true);
-                                                }
-                                            }}
-                                            className="px-3 py-1 text-xs bg-orange-500 text-white rounded hover:bg-orange-600"
-                                        >
-                                            Test Idle
-                                        </button>
-                                        <button
-                                            onClick={() => {
-                                                console.log('🧪 Manual ACTIVE test triggered');
-                                                if (isTimerPausedRef.current) {
-                                                    handleTimerResume();
-                                                    setShowIdleNotification(false);
-                                                }
-                                            }}
-                                            className="px-3 py-1 text-xs bg-green-500 text-white rounded hover:bg-green-600"
-                                        >
-                                            Test Resume
-                                        </button>
-                                    </div>
                                 </div>
                             </div>
 

@@ -47,10 +47,10 @@ import {
 } from '@dnd-kit/core';
 
 const priorityColors: { [key: string]: string } = {
-    URGENT: 'bg-red-100 text-red-800 border-red-200',
-    HIGH: 'bg-orange-100 text-orange-800 border-orange-200',
-    MEDIUM: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-    LOW: 'bg-green-100 text-green-800 border-green-200',
+    URGENT: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+    HIGH: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
+    MEDIUM: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+    LOW: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
 };
 
 const columnColors: { [key: string]: string } = {
@@ -58,6 +58,20 @@ const columnColors: { [key: string]: string } = {
     IN_PROGRESS: 'bg-blue-50 border-blue-200',
     REVIEW: 'bg-purple-50 border-purple-200',
     COMPLETED: 'bg-green-50 border-green-200',
+};
+
+const statusLabels: { [key: string]: string } = {
+    TODO: 'To Do',
+    IN_PROGRESS: 'In Progress',
+    REVIEW: 'Review',
+    COMPLETED: 'Complete',
+};
+
+const statusBadgeColors: { [key: string]: string } = {
+    TODO: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
+    IN_PROGRESS: 'bg-blue-100 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
+    REVIEW: 'bg-purple-100 text-purple-700 dark:bg-purple-900/20 dark:text-purple-400',
+    COMPLETED: 'bg-green-100 text-green-700 dark:bg-green-900/20 dark:text-green-400',
 };
 
 /** Flattens parent and nested subTasks into one array; adds _parentTitle for subtasks. */
@@ -113,125 +127,15 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
             style={style}
             className={
                 isSubtask
-                    ? 'relative bg-primary-50/60 dark:bg-primary-950/40 rounded-lg border border-primary-200 dark:border-primary-500/40 border-l-4 border-l-primary-500 px-3 py-2 mb-2 shadow-sm cursor-grab active:cursor-grabbing'
+                    ? 'relative rounded-lg border border-l-[3px] border-l-primary-500 bg-gray-50/80 dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-600/50 px-3 py-2 mb-1.5 cursor-grab active:cursor-grabbing hover:border-primary-400/50 dark:hover:border-primary-500/50 transition-colors'
                     : 'relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing'
             }
             {...attributes}
             {...listeners}
         >
-            {/* Header with chevron, grip hint, and title (title + edit menu exclude from drag) */}
-            <div className="flex items-start justify-between mb-2">
-                <div className="flex items-center gap-1.5 flex-1 min-w-0">
-                    {/* Expand/collapse chevron - exclude from drag */}
-                    {hasSubtasks && !isSubtask && onToggleExpand && (
-                        <button
-                            type="button"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                e.preventDefault();
-                                onToggleExpand();
-                            }}
-                            onPointerDown={(e) => e.stopPropagation()}
-                            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
-                        >
-                            <ChevronDownIcon
-                                className={`h-4 w-4 transition-transform duration-200 ease-out ${
-                                    expanded ? 'rotate-0' : '-rotate-90'
-                                }`}
-                            />
-                        </button>
-                    )}
-
-                    {/* Title: click goes to details (programmatic nav so drag doesn't block it) */}
-                    <div
-                        className="flex items-start flex-1 min-w-0 cursor-pointer"
-                        onPointerDown={(e) => e.stopPropagation()}
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            e.preventDefault();
-                            onNavigateToDetails?.(task.id);
-                        }}
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                e.stopPropagation();
-                                onNavigateToDetails?.(task.id);
-                            }
-                        }}
-                    >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                            <h3
-                                className={
-                                    isSubtask
-                                        ? 'text-xs font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-1 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
-                                        : 'text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-1 hover:text-primary-600 dark:hover:text-primary-400 hover:underline'
-                                }
-                            >
-                                {task.title}
-                            </h3>
-                            {isSubtask && (
-                                <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-gray-800/60 text-xs text-primary-700 dark:text-primary-300 px-2 py-0.5 border border-primary-200/80 dark:border-primary-700/40">
-                                    Subtask
-                                </span>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            {/* Body content */}
-            {isSubtask && parentTitle && (
-                <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-1">
-                    Subtask of{' '}
-                    <span className="font-medium text-gray-700 dark:text-gray-200">
-                        {parentTitle}
-                    </span>
-                </p>
-            )}
-            {task.description && (
-                <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
-                    {task.description}
-                </p>
-            )}
-
-            <div className="flex items-center justify-between mb-2">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${priorityColors[task.priority]}`}>
-                    {task.priority}
-                </span>
-                <div className="flex items-center text-xs text-gray-500">
-                    <ClockIcon className="h-3 w-3 mr-1" />
-                    {task.estimatedTime ? `${task.estimatedTime}h` : 'No estimate'}
-                </div>
-            </div>
-
-            <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center text-xs text-gray-500">
-                    <CalendarIcon className="h-3 w-3 mr-1" />
-                    {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
-                </div>
-                {task.assignedToId && (
-                    <div className="flex items-center">
-                        <div className="h-6 w-6 rounded-full bg-gray-300 flex items-center justify-center">
-                            <UserCircleIcon className="h-4 w-4 text-gray-600" />
-                        </div>
-                        <span className="ml-1 text-xs text-gray-600">
-                            {users.find((u: any) => u.id === task.assignedToId)?.name || 'Unassigned'}
-                        </span>
-                    </div>
-                )}
-            </div>
-
-            {task.project && (
-                <div className="mt-2 pt-2 border-t border-gray-100">
-                    <span className="text-xs text-gray-500">{task.project.name}</span>
-                </div>
-            )}
-
-            {/* Card menu - EXCLUDED from drag so menu works */}
+            {/* Card menu - EXCLUDED from drag */}
             <div
-                className="absolute top-4 right-3"
+                className={`absolute ${isSubtask ? 'top-2 right-2' : 'top-3 right-3'}`}
                 onPointerDown={(e) => e.stopPropagation()}
             >
                 <button
@@ -292,60 +196,115 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
                 )}
             </div>
 
-            {/* Status Change Buttons - exclude from starting drag so click works */}
-            <div
-                className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex gap-1"
-                onPointerDown={(e) => e.stopPropagation()}
-            >
-                {task.status !== 'TODO' && (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange('TODO');
-                        }}
-                        className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
+            {/* Header with chevron and title */}
+            <div className="flex items-start justify-between mb-2">
+                <div className="flex items-center gap-1.5 flex-1 min-w-0 pr-8">
+                    {hasSubtasks && !isSubtask && onToggleExpand && (
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggleExpand(); }}
+                            onPointerDown={(e) => e.stopPropagation()}
+                            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0"
+                        >
+                            <ChevronDownIcon className={`h-4 w-4 transition-transform duration-200 ${expanded ? 'rotate-0' : '-rotate-90'}`} />
+                        </button>
+                    )}
+                    <div
+                        className="flex-1 min-w-0 cursor-pointer group"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onClick={(e) => { e.stopPropagation(); onNavigateToDetails?.(task.id); }}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onNavigateToDetails?.(task.id); } }}
                     >
-                        To Do
-                    </button>
-                )}
-                {task.status !== 'IN_PROGRESS' && (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange('IN_PROGRESS');
-                        }}
-                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/30"
-                    >
-                        In Progress
-                    </button>
-                )}
-                {task.status !== 'REVIEW' && (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange('REVIEW');
-                        }}
-                        className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded hover:bg-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/30"
-                    >
-                        Review
-                    </button>
-                )}
-                {task.status !== 'COMPLETED' && (
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            handleStatusChange('COMPLETED');
-                        }}
-                        className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30"
-                    >
-                        Complete
-                    </button>
-                )}
+                        <div className="flex items-center gap-2 flex-1 min-w-0">
+                            <h3 className={`font-semibold text-gray-900 dark:text-white line-clamp-2 px-1 py-0.5 rounded pr-1 group-hover:text-primary-600 dark:group-hover:text-primary-400 group-hover:underline ${isSubtask ? 'text-xs' : 'text-sm'}`}>
+                                {task.title}
+                            </h3>
+                            {isSubtask && (
+                                <span className="inline-flex items-center rounded-full bg-white/70 dark:bg-gray-800/60 text-xs text-primary-700 dark:text-primary-300 px-2 py-0.5 border border-primary-200/80 dark:border-primary-700/40">
+                                    Subtask
+                                </span>
+                            )}
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            {isSubtask ? (
+                <div className="mt-2 flex items-center gap-2" onPointerDown={(e) => e.stopPropagation()}>
+                    <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium ${statusBadgeColors[task.status] || statusBadgeColors.TODO}`}>
+                        {statusLabels[task.status] || task.status}
+                    </span>
+                </div>
+            ) : (
+                <>
+                    {task.description && (
+                        <p className="text-xs text-gray-600 dark:text-gray-300 mb-3 line-clamp-2">
+                            {task.description}
+                        </p>
+                    )}
+                    <div className="flex items-center justify-between mb-2">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${priorityColors[task.priority] || priorityColors.MEDIUM}`}>
+                            {task.priority}
+                        </span>
+                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                            <ClockIcon className="h-3 w-3 mr-1" />
+                            {task.estimatedTime ? `${task.estimatedTime}h` : 'No estimate'}
+                        </div>
+                    </div>
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
+                            <CalendarIcon className="h-3 w-3 mr-1" />
+                            {task.dueDate ? new Date(task.dueDate).toLocaleDateString() : 'No due date'}
+                        </div>
+                        {task.assignedToId && (
+                            <div className="flex items-center">
+                                <div className="h-6 w-6 rounded-full bg-gray-300 dark:bg-gray-600 flex items-center justify-center">
+                                    <UserCircleIcon className="h-4 w-4 text-gray-600 dark:text-gray-300" />
+                                </div>
+                                <span className="ml-1 text-xs text-gray-600 dark:text-gray-300">
+                                    {users.find((u: any) => u.id === task.assignedToId)?.name || 'Unassigned'}
+                                </span>
+                            </div>
+                        )}
+                    </div>
+                    {task.project && (
+                        <div className="mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                            <span className="text-xs text-gray-500 dark:text-gray-400">{task.project.name}</span>
+                        </div>
+                    )}
+                    <div
+                        className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex gap-1 flex-wrap"
+                        onPointerDown={(e) => e.stopPropagation()}
+                    >
+                        {task.status !== 'TODO' && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleStatusChange('TODO'); }}
+                                className="text-xs px-2 py-1 rounded-md bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600">
+                                To Do
+                            </button>
+                        )}
+                        {task.status !== 'IN_PROGRESS' && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleStatusChange('IN_PROGRESS'); }}
+                                className="text-xs px-2 py-1 rounded-md bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:hover:bg-blue-900/30">
+                                In Progress
+                            </button>
+                        )}
+                        {task.status !== 'REVIEW' && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleStatusChange('REVIEW'); }}
+                                className="text-xs px-2 py-1 rounded-md bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/20 dark:text-purple-400 dark:hover:bg-purple-900/30">
+                                Review
+                            </button>
+                        )}
+                        {task.status !== 'COMPLETED' && (
+                            <button type="button" onClick={(e) => { e.stopPropagation(); handleStatusChange('COMPLETED'); }}
+                                className="text-xs px-2 py-1 rounded-md bg-green-100 text-green-700 hover:bg-green-200 dark:bg-green-900/20 dark:text-green-400 dark:hover:bg-green-900/30">
+                                Complete
+                            </button>
+                        )}
+                    </div>
+                </>
+            )}
         </div>
     );
 };
@@ -493,24 +452,27 @@ const DroppableKanbanColumn = ({
     );
 };
 
-// Simple TaskCard for drag overlay
+// TaskCard for drag overlay - full for parent, minimal for subtask
 const TaskCard = ({ task }: { task: any }) => {
-    return (
-        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-4 opacity-90">
-            <h3 className="text-sm font-medium text-gray-900 line-clamp-2 mb-2">
-                {task.title}
-            </h3>
-            {task.description && (
-                <p className="text-xs text-gray-600 line-clamp-2 mb-2">
-                    {task.description}
-                </p>
-            )}
-            <div className="flex items-center justify-between">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${priorityColors[task.priority]}`}>
-                    {task.priority}
+    const isSubtask = !!task.parentTaskId;
+    if (isSubtask) {
+        return (
+            <div className="rounded-lg shadow-lg border-2 border-primary-400 border-l-4 border-l-primary-500 bg-white dark:bg-gray-800 p-3 opacity-95">
+                <h3 className="text-sm font-medium text-gray-900 dark:text-white truncate">{task.title}</h3>
+                <span className={`inline-flex mt-1.5 px-2 py-0.5 rounded-md text-xs font-medium ${statusBadgeColors[task.status] || statusBadgeColors.TODO}`}>
+                    {statusLabels[task.status] || task.status}
                 </span>
+            </div>
+        );
+    }
+    return (
+        <div className="rounded-lg shadow-lg border-2 border-primary-400 bg-white dark:bg-gray-800 p-4 opacity-95">
+            <h3 className="text-sm font-medium text-gray-900 dark:text-white line-clamp-2 mb-2">{task.title}</h3>
+            {task.description && <p className="text-xs text-gray-600 dark:text-gray-300 line-clamp-2 mb-2">{task.description}</p>}
+            <div className="flex items-center justify-between">
+                <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${priorityColors[task.priority] || priorityColors.MEDIUM}`}>{task.priority}</span>
                 {task.dueDate && (
-                    <div className="flex items-center text-xs text-gray-500">
+                    <div className="flex items-center text-xs text-gray-500 dark:text-gray-400">
                         <CalendarIcon className="h-3 w-3 mr-1" />
                         {new Date(task.dueDate).toLocaleDateString()}
                     </div>
