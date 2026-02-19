@@ -1,7 +1,9 @@
 'use client';
 
+import { useMemo } from 'react';
 import { useQuery } from '@apollo/client';
-import { GET_ME, GET_PROJECTS, GET_TASKS } from '@/lib/graphql/queries';
+import { GET_PROJECTS, GET_TASKS, GET_USERS } from '@/lib/graphql/queries';
+import { useAuthStore } from '@/lib/store';
 import {
     UserGroupIcon,
     FolderIcon,
@@ -9,46 +11,97 @@ import {
     CurrencyDollarIcon,
 } from '@heroicons/react/24/outline';
 
+type StatChangeType = 'positive' | 'negative' | 'neutral';
+
+interface StatItem {
+    name: string;
+    value: string;
+    icon: React.ComponentType<{ className?: string }>;
+    change: string;
+    changeType: StatChangeType;
+    hint?: string;
+}
+
+function countOpenTasks(tasks: any[]): number {
+    return tasks.reduce(
+        (sum, t) =>
+            sum +
+            (t.status !== 'COMPLETED' ? 1 : 0) +
+            (t.subTasks?.length ? countOpenTasks(t.subTasks) : 0),
+        0
+    );
+}
+
 export default function DashboardPage() {
-    const { data: userData } = useQuery(GET_ME);
+    const user = useAuthStore((state) => state.user);
+    const role = user?.role;
+    const userId = user?.id;
+    const isAdmin = role?.toUpperCase() === 'ADMIN';
+
+    const { data: usersData } = useQuery(GET_USERS);
     const { data: projectsData } = useQuery(GET_PROJECTS);
     const { data: tasksData } = useQuery(GET_TASKS);
+    const { data: myTasksData } = useQuery(GET_TASKS, {
+        variables: { filters: { assignedToId: userId ?? '' } },
+        skip: !userId || isAdmin,
+    });
 
-    const stats = [
-        {
-            name: 'Total Employees',
-            value: '24',
-            icon: UserGroupIcon,
-            change: '+4.75%',
-            changeType: 'positive',
-        },
-        {
-            name: 'Active Projects',
-            value: projectsData?.projects?.filter((p: any) => p.status === 'ACTIVE').length || '0',
-            icon: FolderIcon,
-            change: '+54.02%',
-            changeType: 'positive',
-        },
-        {
-            name: 'Open Tasks',
-            value: (() => {
-                const ts = tasksData?.tasks || [];
-                const countOpen = (arr: any[]): number =>
-                    arr.reduce((s, t) => s + (t.status !== 'COMPLETED' ? 1 : 0) + countOpen(t.subTasks || []), 0);
-                return countOpen(ts);
-            })(),
-            icon: ClockIcon,
-            change: '-1.39%',
-            changeType: 'negative',
-        },
-        {
-            name: 'Monthly Revenue',
-            value: '$245K',
-            icon: CurrencyDollarIcon,
-            change: '+10.18%',
-            changeType: 'positive',
-        },
-    ];
+    const stats = useMemo(() => {
+        const totalEmployees = usersData?.users?.length ?? 0;
+        const activeProjects = projectsData?.projects?.filter((p: any) => p.status === 'ACTIVE').length ?? 0;
+        const openTasks = countOpenTasks(tasksData?.tasks ?? []);
+        const myTasksOpen = countOpenTasks(myTasksData?.tasks ?? []);
+
+        const baseStats: StatItem[] = [];
+
+        if (isAdmin) {
+            baseStats.push({
+                name: 'Total Employees',
+                value: String(totalEmployees),
+                icon: UserGroupIcon,
+                change: '—',
+                changeType: 'neutral',
+            });
+        } else {
+            baseStats.push({
+                name: 'Tasks assigned to me',
+                value: String(myTasksOpen),
+                icon: UserGroupIcon,
+                change: '—',
+                changeType: 'neutral',
+            });
+        }
+
+        baseStats.push(
+            {
+                name: 'Active Projects',
+                value: String(activeProjects),
+                icon: FolderIcon,
+                change: '—',
+                changeType: 'neutral',
+            },
+            {
+                name: 'Open Tasks',
+                value: String(openTasks),
+                icon: ClockIcon,
+                change: '—',
+                changeType: 'neutral',
+                hint: 'To do, In progress, Review',
+            }
+        );
+
+        if (isAdmin) {
+            baseStats.push({
+                name: 'Monthly Revenue',
+                value: '—',
+                icon: CurrencyDollarIcon,
+                change: '—',
+                changeType: 'neutral',
+            });
+        }
+
+        return baseStats;
+    }, [isAdmin, usersData?.users?.length, projectsData?.projects, tasksData?.tasks, myTasksData?.tasks]);
 
     const recentProjects = projectsData?.projects?.slice(0, 5) || [];
     const recentTasks = tasksData?.tasks?.slice(0, 5) || [];
@@ -76,24 +129,34 @@ export default function DashboardPage() {
                                 <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
                                     {stat.name}
                                 </p>
+                                {stat.hint && (
+                                    <p className="text-xs text-gray-500 dark:text-gray-500 mt-0.5">
+                                        {stat.hint}
+                                    </p>
+                                )}
                                 <p className="text-2xl font-semibold text-gray-900 dark:text-white">
                                     {stat.value}
                                 </p>
                             </div>
                         </div>
-                        <div className="mt-4">
-                            <div
-                                className={`inline-flex items-baseline rounded-full px-2.5 py-0.5 text-sm font-medium ${stat.changeType === 'positive'
-                                        ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
-                                        : 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                        {stat.change !== '—' && (
+                            <div className="mt-4">
+                                <div
+                                    className={`inline-flex items-baseline rounded-full px-2.5 py-0.5 text-sm font-medium ${
+                                        stat.changeType === 'positive'
+                                            ? 'bg-green-100 text-green-800 dark:bg-green-900/20 dark:text-green-400'
+                                            : stat.changeType === 'negative'
+                                                ? 'bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-400'
+                                                : 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
                                     }`}
-                            >
-                                {stat.change}
+                                >
+                                    {stat.change}
+                                </div>
+                                <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
+                                    from last month
+                                </span>
                             </div>
-                            <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                                from last month
-                            </span>
-                        </div>
+                        )}
                     </div>
                 ))}
             </div>

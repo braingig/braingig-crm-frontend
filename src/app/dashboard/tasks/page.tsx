@@ -127,7 +127,7 @@ const DraggableTaskCard = ({ task, onEdit, onDelete, onStatusChange, onAddSubtas
             className={
                 isSubtask
                     ? 'relative rounded-lg border border-l-[3px] border-l-primary-500 bg-gray-50/80 dark:bg-gray-800/60 border-gray-200/80 dark:border-gray-600/50 px-3 py-2 mb-1.5 cursor-grab active:cursor-grabbing hover:border-primary-400/50 dark:hover:border-primary-500/50 transition-colors'
-                    : 'relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing'
+                    : 'relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing'
             }
             {...attributes}
             {...listeners}
@@ -366,7 +366,7 @@ const ParentTaskWithSubtasks = ({
                     style={{ gridTemplateRows: expanded ? '1fr' : '0fr' }}
                 >
                     <div className="min-h-0 overflow-hidden">
-                        <div className="ml-2 mt-2 space-y-2">
+                        <div className="ml-2 mt-2 mb-4 space-y-2">
                             {subtasks.map((subtask: any) => (
                                 <DraggableTaskCard
                                     key={subtask.id}
@@ -432,7 +432,7 @@ const DroppableKanbanColumn = ({
             </div>
             <div
                 ref={setNodeRef}
-                className={`bg-gray-50 rounded-b-lg border border-t-0 border-gray-200 p-3 min-h-[400px] ${isOver ? 'bg-blue-50' : ''}`}
+                className={`bg-gray-50 rounded-b-lg space-y-3 border border-t-0 border-gray-200 p-3 min-h-[400px] ${isOver ? 'bg-blue-50' : ''}`}
             >
                 {tasks.map((task) => (
                     <ParentTaskWithSubtasks

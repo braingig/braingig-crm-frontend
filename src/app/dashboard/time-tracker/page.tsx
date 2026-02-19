@@ -47,7 +47,12 @@ export default function TimeTrackerPage() {
         taskId: ''
     });
     const [viewMode, setViewMode] = useState<'dashboard' | 'timesheet' | 'reports'>('dashboard');
-    const [timesheetFilter, setTimesheetFilter] = useState<'today' | 'week' | 'month'>('week');
+    type TimesheetFilterValue = 'today' | 'week' | 'month' | 'lastMonth' | 'custom';
+    const [timesheetFilter, setTimesheetFilter] = useState<TimesheetFilterValue>('week');
+    const [customMonth, setCustomMonth] = useState<string>(() => {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    });
     const [showWorkTypeSelector, setShowWorkTypeSelector] = useState(false);
     const [showOnsiteCheckInToast, setShowOnsiteCheckInToast] = useState(false);
     const [showCheckInSuccessToast, setShowCheckInSuccessToast] = useState(false);
@@ -317,6 +322,35 @@ export default function TimeTrackerPage() {
     const getMonthEnd = () => {
         const now = new Date();
         return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    };
+
+    const getLastMonthStart = () => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    };
+
+    const getLastMonthEnd = () => {
+        const now = new Date();
+        return new Date(now.getFullYear(), now.getMonth(), 0);
+    };
+
+    const getMonthRangeFor = (yyyyMm: string) => {
+        const [y, m] = yyyyMm.split('-').map(Number);
+        const start = new Date(y, m - 1, 1);
+        const end = new Date(y, m, 0);
+        return { start, end };
+    };
+
+    const getPreviousMonthsOptions = () => {
+        const options: { value: string; label: string }[] = [];
+        const now = new Date();
+        for (let i = 0; i < 24; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            const label = d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+            options.push({ value, label });
+        }
+        return options;
     };
 
     // Queries for week and month timesheets
@@ -1429,20 +1463,37 @@ export default function TimeTrackerPage() {
                     const entryDate = new Date(entry.startTime);
                     return entryDate.toDateString() === now.toDateString();
                 });
-            case 'week':
+            case 'week': {
                 const weekStart = getWeekStart();
                 const weekEnd = getWeekEnd();
                 return entries.filter((entry: any) => {
                     const entryDate = new Date(entry.startTime);
                     return entryDate >= weekStart && entryDate <= weekEnd;
                 });
-            case 'month':
+            }
+            case 'month': {
                 const monthStart = getMonthStart();
                 const monthEnd = getMonthEnd();
                 return entries.filter((entry: any) => {
                     const entryDate = new Date(entry.startTime);
                     return entryDate >= monthStart && entryDate <= monthEnd;
                 });
+            }
+            case 'lastMonth': {
+                const lastMonthStart = getLastMonthStart();
+                const lastMonthEnd = getLastMonthEnd();
+                return entries.filter((entry: any) => {
+                    const entryDate = new Date(entry.startTime);
+                    return entryDate >= lastMonthStart && entryDate <= lastMonthEnd;
+                });
+            }
+            case 'custom': {
+                const { start, end } = getMonthRangeFor(customMonth);
+                return entries.filter((entry: any) => {
+                    const entryDate = new Date(entry.startTime);
+                    return entryDate >= start && entryDate <= end;
+                });
+            }
             default:
                 return entries;
         }
@@ -2576,17 +2627,37 @@ export default function TimeTrackerPage() {
                                     <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                                         Time Entries
                                     </h2>
-                                    <div className="flex items-center space-x-4">
+                                    <div className="flex items-center flex-wrap gap-2">
                                         <select
-                                            value={timesheetFilter}
-                                            onChange={(e) => setTimesheetFilter(e.target.value as 'today' | 'week' | 'month')}
+                                            value={timesheetFilter === 'custom' ? 'custom' : timesheetFilter}
+                                            onChange={(e) => {
+                                                const v = e.target.value as TimesheetFilterValue;
+                                                if (v === 'custom') {
+                                                    setTimesheetFilter('custom');
+                                                } else {
+                                                    setTimesheetFilter(v);
+                                                }
+                                            }}
                                             className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
                                         >
                                             <option value="today">Today</option>
                                             <option value="week">This Week</option>
                                             <option value="month">This Month</option>
+                                            <option value="lastMonth">Last Month</option>
+                                            <option value="custom">Pick a month…</option>
                                         </select>
-                                        <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors">
+                                        {timesheetFilter === 'custom' && (
+                                            <select
+                                                value={customMonth}
+                                                onChange={(e) => setCustomMonth(e.target.value)}
+                                                className="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                                            >
+                                                {getPreviousMonthsOptions().map(({ value, label }) => (
+                                                    <option key={value} value={value}>{label}</option>
+                                                ))}
+                                            </select>
+                                        )}
+                                        <button className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors ml-auto sm:ml-0">
                                             <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
                                             Export
                                         </button>

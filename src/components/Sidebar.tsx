@@ -9,10 +9,11 @@ import {
     ClockIcon,
     BanknotesIcon,
     ChartBarIcon,
-    BellIcon,
 } from '@heroicons/react/24/outline';
+import { useAuthStore } from '@/lib/store';
+import { getAllowedRoutes } from '@/lib/permissions';
 
-const navigation = [
+const allNavigation = [
     { name: 'Dashboard', href: '/dashboard', icon: HomeIcon },
     { name: 'Employees', href: '/dashboard/employees', icon: UserGroupIcon },
     { name: 'Projects', href: '/dashboard/projects', icon: FolderIcon },
@@ -24,6 +25,9 @@ const navigation = [
 
 export default function Sidebar() {
     const pathname = usePathname();
+    const role = useAuthStore((state) => state.user?.role);
+    const allowedPaths = getAllowedRoutes(role);
+    const navigation = allNavigation.filter((item) => allowedPaths.includes(item.href));
 
     return (
         <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">

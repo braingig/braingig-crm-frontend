@@ -1,20 +1,30 @@
 'use client';
 
 import { useEffect, ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/store';
+import { canAccessRoute } from '@/lib/permissions';
 import Sidebar from '@/components/Sidebar';
 import Header from '@/components/Header';
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
-    const { isAuthenticated, hasHydrated } = useAuth();
+    const pathname = usePathname();
+    const { isAuthenticated, hasHydrated, user } = useAuth();
 
     useEffect(() => {
         if (hasHydrated && !isAuthenticated) {
             router.push('/login');
         }
     }, [isAuthenticated, hasHydrated, router]);
+
+    useEffect(() => {
+        if (hasHydrated && isAuthenticated && user?.role && pathname) {
+            if (!canAccessRoute(user.role, pathname)) {
+                router.replace('/dashboard');
+            }
+        }
+    }, [hasHydrated, isAuthenticated, user?.role, pathname, router]);
 
     if (!hasHydrated) {
         return (

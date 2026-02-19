@@ -14,6 +14,7 @@ interface EditEmployeeModalProps {
 
 interface FormData {
     name: string;
+    email: string;
     phone: string;
     department: string;
     skills: string;
@@ -25,6 +26,7 @@ interface FormData {
 export default function EditEmployeeModal({ isOpen, onClose, onEmployeeUpdated, employee }: EditEmployeeModalProps) {
     const [formData, setFormData] = useState<FormData>({
         name: '',
+        email: '',
         phone: '',
         department: '',
         skills: '',
@@ -39,6 +41,7 @@ export default function EditEmployeeModal({ isOpen, onClose, onEmployeeUpdated, 
         if (employee) {
             setFormData({
                 name: employee.name || '',
+                email: employee.email || '',
                 phone: employee.phone || '',
                 department: employee.department || '',
                 skills: employee.skills ? employee.skills.join(', ') : '',
@@ -66,6 +69,7 @@ export default function EditEmployeeModal({ isOpen, onClose, onEmployeeUpdated, 
                     id: employee.id,
                     input: {
                         name: formData.name,
+                        email: formData.email || undefined,
                         phone: formData.phone || undefined,
                         department: formData.department || undefined,
                         skills: formData.skills ? formData.skills.split(',').map(skill => skill.trim()) : undefined,
@@ -117,6 +121,20 @@ export default function EditEmployeeModal({ isOpen, onClose, onEmployeeUpdated, 
                                 type="text"
                                 name="name"
                                 value={formData.name}
+                                onChange={handleChange}
+                                required
+                                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                                Email
+                            </label>
+                            <input
+                                type="email"
+                                name="email"
+                                value={formData.email}
                                 onChange={handleChange}
                                 required
                                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-primary-500 focus:ring-primary-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
