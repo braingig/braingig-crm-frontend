@@ -2700,8 +2700,8 @@ export default function TimeTrackerPage() {
                                                 <td className="px-6 py-4 whitespace-nowrap">
                                                     {entry.taskId ? (
                                                         (() => {
-                                                            const task = tasks.find((t: any) => t.id === entry.taskId);
-                                                            const projectName = task ? projectMap.get(task.projectId) as string : 'Unknown Project';
+                                                            const task = myTasks.find((t: any) => t.id === entry.taskId) ?? tasks.find((t: any) => t.id === entry.taskId);
+                                                            const projectName = task ? (task.project?.name ?? projectMap.get(task.projectId)) : null;
                                                             return (
                                                                 <p className="text-sm font-medium text-gray-900 dark:text-white">
                                                                     {projectName || 'Unknown Project'}
